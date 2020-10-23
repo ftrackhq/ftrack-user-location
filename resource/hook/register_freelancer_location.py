@@ -2,6 +2,7 @@
 # :copyright: Copyright (c) 2018 ftrack
 
 import os
+import sys
 import functools
 import logging
 import getpass
@@ -11,11 +12,11 @@ import ftrack_api.structure.standard as _standard
 
 
 logger = logging.getLogger(
-    'com.ftrack.recipes.customise_structure.location.custom_location_plugin'
+    'ftrack-freelancer-location'
 )
 
-# Name of the location plugin.
-LOCATION_NAME = 'custom_location'
+# Name of the location.
+LOCATION_NAME = '{}.local'.format(getpass.getuser())
 
 # Disk mount point.
 DISK_PREFIX = os.path.join(
@@ -33,9 +34,7 @@ def configure_location(session, event):
     location = session.ensure(
         'Location', 
         {
-            'name': '{}.local'.format(
-                getpass.getuser()
-            )
+            'name': LOCATION_NAME
         }
     )
 
@@ -43,10 +42,12 @@ def configure_location(session, event):
         prefix=DISK_PREFIX
     )
     location.structure = _standard.StandardStructure()
-    location.priority = -1
+    location.priority = 1-sys.maxint
 
-    logger.info(
-        u'Registered location {0} at {1}.'.format(LOCATION_NAME, DISK_PREFIX)
+    logger.warning(
+        u'Registering Using location {0} @ {1} with priority {2}'.format(
+            LOCATION_NAME, DISK_PREFIX, location.priority
+        )
     )
 
 

@@ -68,7 +68,7 @@ class BuildPlugin(Command):
             ]
         )
 
-        result_path = shutil.make_archive(
+        shutil.make_archive(
             os.path.join(
                 BUILD_PATH,
                 'ftrack-freelancer-location-{0}'.format(VERSION)

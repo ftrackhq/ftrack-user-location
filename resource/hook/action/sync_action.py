@@ -1,152 +1,62 @@
-''':copyright: Copyright (c) 2015 EfestoLab'''
 
 import os
 import sys
-import imp
 from pprint import pformat
-import ftrack
+
+dependencies_directory = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'dependencies')
+)
+sys.path.append(dependencies_directory)
+
+import ftrack_api
+from ftrack_action_handler.action import BaseAction
+from ftrack_freelancer_location import sync
 
 
-# Init paths to dependencies.
-_this_dir = os.path.abspath(os.path.dirname(__file__))
-_actionutils_path = os.path.join(_this_dir, "..", "..", "..", "efesto-ftrack-base", "efesto-ftrack-config", "source", "efesto_ftrack_config", "actionutils.py")
-_configutils_path = os.path.join(_this_dir, "..", "..", "..", "efesto-ftrack-base", "efesto-ftrack-config", "source", "efesto_ftrack_config", "configutils.py")
-_sync_module_path = os.path.normpath(os.path.join(_this_dir, "..", "..", "source"))
-
-class Sync(ftrack.Action):
-    debug = False
+class Sync(BaseAction):
 
     name = 'efesto_fsync'
     label = 'Efesto Lab'
     identifier = 'efesto_fsync'
     variant = 'Sync To...'
 
-    ALLOWED_ROLES = ['Administrator']
-    ALLOWED_GROUPS = None
-    IGNORED_TYPES = None
-    ALLOWED_TYPES = ['AssetVersion']
-    LIMIT_TO_USER = True
+    def __init__(self, session):
+        super(Sync, self).__init__(session)
+        self._location_data = {}
+        self._sync_data = {}
 
-    DEFAULT_LOGO = {
-        'standard': 'http://www.efestolab.uk/icons/efesto_logo.png',
-        'debug': 'http://www.efestolab.uk/icons/efesto_logo_debug.png'
-    }
-    LOGO = None
 
-    location = None
-    location_data = {}
-    sync_data = {}
 
-    logger = None
-
-    def __init__(self):
-        super(Sync, self).__init__()
 
     @property
-    def identifier(self):
-        return 'efesto.%s' % self.name
-
-    def is_debug(self):
-        ''':returns: Whether the action is of debug type.
-        :rtype: bool'''
-
-        return self.debug
-
-    def get_selection(self, event):
-        '''From a raw event dictionary, extract the selected entities.
-
-        :param event: Raw ftrack event
-        :type event: dict
-        :returns: List of entity dictionaries
-        :rtype: List of dict'''
-
-        data = event['data']
-        selection = data.get('selection', [])
-        seleted_items = ', '.join([s.get('entityId') for s in selection])
-        return selection
-
-    def get_user(self, event):
-        '''From a raw event dictionary, extract the source user.
-
-        :param event: Raw ftrack event
-        :type event: dict
-        :returns: Id of the user.
-        :rtype: str'''
-        return event['source']['user']['username']
-
-    def check_permissions(self, user):
-        '''Checks that the specified user has the permissions set in
-        ``ALLOWED_GROUPS`` and ``ALLOWED_ROLES``.
-
-        :param user: Id of the desired user to check permissions.
-        :type user: str
-        :returns: Whether the specified user has permissions or not.
-        :rtype: bool'''
-
-        group_valid = True
-        role_valid = True
-
-        if not self.ALLOWED_ROLES and not self.ALLOWED_GROUPS:
-            return True
-        fuser = ftrack.User(user)
-
-        if self.ALLOWED_GROUPS:
-            group_users = []
-            for group in ftrack.getGroups():
-                if group.dict.get('name') not in self.ALLOWED_GROUPS:
-                    continue
-                for member in group.getMembers():
-                    group_users.append(member)
-            group_users = [x.getUsername() for x in group_users]
-            if fuser.getUsername() not in group_users:
-                group_valid = False
-
-        if self.ALLOWED_ROLES:
-            _roles = []
-            roles = [r.getName() for r in fuser.getRoles()]
-            for role in roles:
-                _roles.append(role in self.ALLOWED_ROLES)
-            role_valid = any(_roles)
-        return group_valid and role_valid
-
-    def get_logo(self):
-        ''':returns: URL to the efesto logo.
-        :rtype: str
-        '''
-        if self.LOGO:
-            return self.LOGO
-        if not self.debug:
-            key = 'standard'
-        else:
-            key = 'debug'
-
-        return self.DEFAULT_LOGO.get(key, '')
+    def location(self):
+        return self.session.pick_location()
 
     def get_locations(self, name=False):
-        locations = ftrack.getLocations(True, False)
+        locations = self.session.query('select name from Location').all()
         if name:
-            locations = [x.getName() for x in locations]
+            locations = [x['name'] for x in locations]
         return locations
 
     def get_current_location(self, name=False):
-        location = ftrack.pickLocation()
+        location = self.session.pick_location()
         if name:
-            location = location.getName()
+            location = location['name']
         return location
 
     def get_locations_menu(
             self, field_id, label=None,
             default_value=None, exclude_self=False):
 
-        from efesto_futils.ftracktools import webui
-
-        location_menu = webui.combo_box(
-            label=label,
-            field_id=field_id,
-            value=default_value or 'Please specify a location'
-        )
+        location_menu = {
+            'label': label,
+            'type': 'enumerator',
+            'name': field_id,
+            'data': []
+        }
 
         locations = self.get_locations(name=True)
+
         if exclude_self:
             self_loc = self.location
             locations = [x for x in locations if not x == self_loc]
@@ -156,16 +66,20 @@ class Sync(ftrack.Action):
         locations = sorted(locations)
 
         for location in locations:
+
+            item = {
+                'label': location,
+                'value': location
+            }
+
             location_menu['data'].append(
-                webui.combo_box_item(
-                    label=location,
-                    value=location
-                )
+                item
             )
+
         return location_menu
 
     def location_exists(self, location):
-        return location in [x.getName() for x in ftrack.getLocations()]
+        return location in self.get_locations(name=True)
 
     def build_sync_event(self, event):
         source_location = event['data']['values']['source_location']
@@ -175,6 +89,7 @@ class Sync(ftrack.Action):
             raise ValueError(
                 'Source location %s does not exist' % source_location
             )
+
         if not self.location_exists(dest_location):
             raise ValueError(
                 'Destination location %s does not exist' % dest_location
@@ -189,12 +104,24 @@ class Sync(ftrack.Action):
         return sync_event
 
     def get_locations_ui(self, event):
-        from efesto_futils.ftracktools import webui
 
         menu = {'items': []}
         items = []
-        items.append(webui.label('## %s ##' % self.location))
-        items.append(webui.label('## Locations ##'))
+
+
+        items.append(
+            {
+                'value':'## %s ##' % self.location,
+                'type': 'label'
+            }
+        )
+
+        items.append(
+            {
+                'value':'Locations',
+                'type': 'label'
+            }
+        )
 
         items.append(
             self.get_locations_menu(
@@ -225,7 +152,6 @@ class Sync(ftrack.Action):
         return '&nbsp;'*amount
 
     def get_review_ui(self, event):
-        from efesto_futils.ftracktools import webui
 
         _id = event['source']['id']
 
@@ -233,24 +159,44 @@ class Sync(ftrack.Action):
 
         items = []
 
-        items.append(webui.label('## Sync Review ##'))
+        items.append(
+            {
+                'value': '## Sync Review ##',
+                'type': 'label'
+            }
+        )
 
         locations = event['data']['values']
 
         items.append(
-            webui.label('**%s** to **%s**' % (
-                locations['source_location'], locations['dest_location'])
-            )
+
+            {
+                'value': '**{}** to **{}**'.format(
+                    locations['source_location'],
+                    locations['dest_location']
+                ),
+                'type': 'label'
+            }
         )
 
-        items.append(webui.label('## Asset Review ##'))
+        items.append(
+            {
+                'value': '## Asset Review ##',
+                'type': 'label'
+            }
+        )
 
         data = self.sync_data.get(_id, {})
 
         total = 0.0
         if data:
             for key, val in sorted(data.items(), key=lambda x: x[0]):
-                items.append(webui.label('### %s' % key))
+                items.append(
+                    {
+                        'value': '### %s' % key,
+                        'type': 'label'
+                    }
+                )
                 for comp in val:
                     total += comp['size']
 
@@ -259,15 +205,34 @@ class Sync(ftrack.Action):
                     name = '%s%s: %f MB'
                     name = name % (self.htm_tab(12), comp['name'], size)
 
-                    items.append(webui.label(name))
-            items.append(webui.label(''))
+                    items.append(
+                        {
+                            'value': name,
+                            'type': 'label'
+                        }
+                    )
+
+            items.append(
+                {
+                    'value': "",
+                    'type': 'label'
+                }
+            )
 
             total_str = '**Total data**: %fMB' % self.bytes_to_mb(total)
-            items.append(webui.label(total_str))
+            items.append(
+                {
+                    'value': total_str,
+                    'type': 'label'
+                }
+            )
 
         else:
             items.append(
-                webui.label('Detailed asset information is not available.')
+                {
+                    'value': 'Detailed asset information is not available.',
+                    'type': 'label'
+                }
             )
 
         menu['items'] = items
@@ -278,14 +243,14 @@ class Sync(ftrack.Action):
 
     def sync_here(self, event=None):
         try:
-            sync.on_syncToDestination(
+            sync.on_sync_to_destination(
+                self.session,
                 event['data']['locations']['sync'],
                 event['data']['locations']['destination'],
                 event['data']['components'],
                 event['source']['user']
             )
         except Exception:
-            self.logger.error(" event:\n"+pformat(args[1]))
             import traceback
             self.logger.error(traceback.format_exc())
             return {
@@ -304,7 +269,8 @@ class Sync(ftrack.Action):
             dest_location = event['data']['values']['dest_location']
             user_id = self.get_user(event)
             selection = self.get_selection(event)
-            sync.on_syncToRemote(
+            sync.on_sync_to_remote(
+                self.session,
                 source_location,
                 dest_location,
                 user_id,
@@ -312,7 +278,6 @@ class Sync(ftrack.Action):
             )
             self.location_data.pop(_id) if _id in self.location_data else None
         except Exception:
-            self.logger.error(" event:\n"+pformat(args[1]))
             import traceback
             self.logger.error(traceback.format_exc())
             return {
@@ -324,78 +289,88 @@ class Sync(ftrack.Action):
             }
             raise
 
-    def discover(self, event):
-        print "Discovering Sync action..."
-        results = super(Sync, self).discover(event)
+    def discover(self, session, entities, event):
+        if not entities:
+            return False
 
-        for item in results['items']:
-            item['location'] = self.location
-            item['icon'] = self.get_logo()
+        return True
 
-        return results
+    def _discover(self, event):
+        args = self._translate_event(
+            self.session, event
+        )
+        accepts = self.discover(
+            self.session, *args
+        )
 
-    def launch(self, event):
-        print "Launching Sync action..."
+        if accepts:
+            return {
+                'items': [{
+                    'icon': self.icon,
+                    'label': self.label,
+                    'variant': self.variant,
+                    'description': self.description,
+                    'actionIdentifier': self.identifier,
+                    'location': self.location['id']
+                }]
+            }
 
-        actionutils = imp.load_source('actionutils', _actionutils_path)
+    def launch(self, session, entities, event):
+        self.logger.debug("Sync action launched, location = %s" % self.location)
 
-        with actionutils.PythonPathActionHelper() as path_helper:
-            if not self.logger:
-                self.logger = path_helper.init_logger(__name__)
-
-            self.logger.debug("Sync action launched, location = %s" % self.location)
-
-            if 'values' not in event['data']:
-                event = self.get_locations_ui(event)
-                return event
-            else:
-                try:
-                    event = self.build_sync_event(event)
-                except ValueError as e:
-                    return {
-                        'success': False,
-                        'message': e
-                    }
-                event['data']['actionIdentifier'] = '%s-to-s3' % self.location
-                ftrack.EVENT_HUB.publish(event)
-
+        if 'values' not in event['data']:
+            event = self.get_locations_ui(event)
+            return event
+        else:
+            try:
+                event = self.build_sync_event(event)
+            except ValueError as e:
                 return {
-                    'success': True,
-                    'message': 'Sync launched'
+                    'success': False,
+                    'message': e
                 }
+            event['data']['actionIdentifier'] = '%s-to-ftrack' % self.location
+            self.session.event_hub.publish(event)
+
+            return {
+                'success': True,
+                'message': 'Sync launched'
+            }
 
     def register(self):
-        env_loc = str(os.getenv('STUDIO'))+'.'+str(os.getenv('SITE'))
+        self.session.event_hub.subscribe(
+            'topic=ftrack.action.discover',
+            self._discover
+        )
 
-        if env_loc == self.location:
-            ftrack.EVENT_HUB.subscribe(
-                'topic=ftrack.action.discover',
-                self.discover
-            )
-            ftrack.EVENT_HUB.subscribe(
-                'topic=ftrack.action.launch and data.actionIdentifier={0}'
-                ' and data.location={1}'.format(
-                    self.identifier,
-                    self.location
-                ),
-                self.launch
-            )
-            ftrack.EVENT_HUB.subscribe(
-                'data.actionIdentifier={0}-to-s3'.format(self.location),
-                self.sync_there
-            )
-            ftrack.EVENT_HUB.subscribe(
-                'data.actionIdentifier=syncto-{0}'.format(self.location),
-                self.sync_here
-            )
+        # self.session.event_hub.subscribe(
+        #     'topic=ftrack.action.launch and data.actionIdentifier={0}'
+        #     ' and data.location={1}'.format(
+        #         self.identifier,
+        #         self.location
+        #     ),
+        #     self.launch
+        # )
+        #
+        # self.session.event_hub.subscribe(
+        #     'data.actionIdentifier={0}-to-ftrack'.format(self.location),
+        #     self.sync_there
+        # )
+        # self.session.event_hub.subscribe(
+        #     'data.actionIdentifier=syncto-{0}'.format(self.location),
+        #     self.sync_here
+        # )
 
-def register(registry, **kwargs):
-    if registry is not ftrack.EVENT_HANDLERS:
+
+def register(session, **kwargs):
+
+    # Validate that session is an instance of ftrack_api.Session. If not,
+    # assume that register is being called from an incompatible API
+    # and return without doing anything.
+    if not isinstance(session, ftrack_api.Session):
         return
 
-    Sync.location = location.get_location()
-    Sync.variant = 'Sync (%s) To... ' % Sync.location
-
-    print "Registering Sync (%s) action" % Sync.location
-    action = Sync()
+    # Sync.variant = 'Sync (%s) To... ' % Sync.location
+    # print "Registering Sync (%s) action" % Sync.location
+    action = Sync(session)
     action.register()

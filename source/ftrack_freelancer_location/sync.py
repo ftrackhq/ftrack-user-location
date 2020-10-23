@@ -1,24 +1,14 @@
-#!/usr/bin/env python
-
-import os
-import ftrack
-import copy
-try:
-    import efesto_logger as logging
-except:
-    import logging
+import ftrack_api
+import logging
 
 logger = logging.getLogger(__name__)
-
-
-STUDIO = os.getenv('STUDIO', 'unknown')
-SITE = os.getenv('SITE', 'unknown')
+ftrack_api
 
 
 sync_serve_name = 'ftrack.server'
 
 
-def on_syncToDestination(source_id, destination_id, components, userId):
+def on_sync_to_destination(session, source_id, destination_id, components, userId):
     ''' Callback for when files are copied from the cloud location into the
     destination one.
 
@@ -29,8 +19,8 @@ def on_syncToDestination(source_id, destination_id, components, userId):
 
     '''
     # get location objects
-    source_location = ftrack.Location(id=source_id)
-    destination_location = ftrack.Location(id=destination_id)
+    source_location = session.get('Location', source_id)
+    destination_location = session.get('Location', destination_id)
     logger.debug("Sync to dest: source loc = %s, dest loc = %s" % (source_location, destination_location))
 
     # get location accessors
@@ -64,12 +54,12 @@ def on_syncToDestination(source_id, destination_id, components, userId):
         logger.warning(message)
         return
 
-    if STUDIO not in destination_name and SITE not in destination_name:
-        message = 'No suitable location found for %s' % destination_name
-        job.setStatus('failed')
-        job.setDescription(message)
-        logger.warning(message)
-        return
+    # if STUDIO not in destination_name and SITE not in destination_name:
+    #     message = 'No suitable location found for %s' % destination_name
+    #     job.setStatus('failed')
+    #     job.setDescription(message)
+    #     logger.warning(message)
+    #     return
 
     # now try to do the sync for each component
     for component in components:
@@ -153,7 +143,7 @@ def on_syncToDestination(source_id, destination_id, components, userId):
     job.setStatus('done')
     logger.info('Finished sync of %i components.' % len(components))
 
-def on_syncToRemote(source, destination, userId, selection):
+def on_sync_to_remote(session, source, destination, userId, selection):
     ''' Callback for when files are copied from the local location to the cloud
         one.
 
@@ -174,29 +164,29 @@ def on_syncToRemote(source, destination, userId, selection):
     logger.debug("Sync to remote: source = %s, dest = %s, user = %s, sel = %s" % (source, destination, userId, selection))
 
     results = {}
-    for location in ftrack.getLocations():
-        location_name = location.getName()
+    for location in session.query('Location').all():
+        location_name = location['name']
         for store_type, store_name in store_mapping.items():
             if store_name == location_name:
                 logger.debug("sync to remote, found location %s, store = %s, type = %s" % (location_name, store_name, store_type))
                 results[store_type] = location
 
-    source_name = results['input'].getName()
-    sync_name = results['sync'].getName()
+    source_name = results['input']['name']
+    sync_name = results['sync']['name']
     logger.debug("Sync to remote: source name = %s, sync name = %s" % (source_name, sync_name))
 
     # create a job to inform the user that something is going on
     message = " Sync from %s to %s" % (source_name, sync_name)
     logger.info(message)
-    job = ftrack.createJob(
-            description=message,
-            status="running",
-            user=ftrack.User(userId)
-    )
+    # job = ftrack.createJob(
+    #         description=message,
+    #         status="running",
+    #         user=ftrack.User(userId)
+    # )
 
     components = []
     for s in selection:
-        version = ftrack.AssetVersion(s['entityId'])
+        version = session.get('AssetVersion', s['entityId'])
 
         # get all the asset components
         for component in version.getComponents():
@@ -283,4 +273,4 @@ def on_syncToRemote(source, destination, userId, selection):
         'source': {'user': userId},
         'topic': 'ftrack.sync'
     }
-    ftrack.EVENT_HUB.publish(event)
+    session.event_hub.publish(event)
