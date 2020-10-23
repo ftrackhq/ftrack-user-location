@@ -1,8 +1,7 @@
 
 import os
 import sys
-from pprint import pformat
-
+import functools
 dependencies_directory = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'dependencies')
 )
@@ -15,18 +14,20 @@ from ftrack_freelancer_location import sync
 
 class Sync(BaseAction):
 
-    name = 'efesto_fsync'
-    label = 'Efesto Lab'
-    identifier = 'efesto_fsync'
+    name = 'ftrack synctool'
+    label = 'ftrack synctool'
+    identifier = 'ftrack.fsync'
     variant = 'Sync To...'
 
     def __init__(self, session):
         super(Sync, self).__init__(session)
         self._location_data = {}
         self._sync_data = {}
-
-
-
+        self._ignored_locations = [
+            'ftrack.origin',
+            'ftrack.server',
+            'ftrack.unmanaged'
+        ]
 
     @property
     def location(self):
@@ -39,7 +40,7 @@ class Sync(BaseAction):
         return locations
 
     def get_current_location(self, name=False):
-        location = self.session.pick_location()
+        location = self.location
         if name:
             location = location['name']
         return location
@@ -58,11 +59,10 @@ class Sync(BaseAction):
         locations = self.get_locations(name=True)
 
         if exclude_self:
-            self_loc = self.location
-            locations = [x for x in locations if not x == self_loc]
+            locations = [x for x in locations if not x == self.location['name']]
 
         # filter out ftrack locations from sync
-        locations = [x for x in locations if not x.startswith('ftrack')]
+        locations = [x for x in locations if x not in self._ignored_locations]
         locations = sorted(locations)
 
         for location in locations:
@@ -97,7 +97,7 @@ class Sync(BaseAction):
 
         sync_event = event.copy()
         sync_event['data']['actionIdentifier'] = 'syncto-%s' % dest_location
-        sync_event['source']['location'] = self.location
+        sync_event['source']['location'] = self.location['name']
         sync_event['target'] = {'location': dest_location}
 
         self.logger.debug("Built sync event %s" % sync_event)
@@ -108,10 +108,9 @@ class Sync(BaseAction):
         menu = {'items': []}
         items = []
 
-
         items.append(
             {
-                'value':'## %s ##' % self.location,
+                'value':'## %s ##' % self.location['name'],
                 'type': 'label'
             }
         )
@@ -311,12 +310,12 @@ class Sync(BaseAction):
                     'variant': self.variant,
                     'description': self.description,
                     'actionIdentifier': self.identifier,
-                    'location': self.location['id']
+                    'location': self.location['name']
                 }]
             }
 
     def launch(self, session, entities, event):
-        self.logger.debug("Sync action launched, location = %s" % self.location)
+        self.logger.warn("Sync action launched, location = %s" % self.location)
 
         if 'values' not in event['data']:
             event = self.get_locations_ui(event)
@@ -338,19 +337,27 @@ class Sync(BaseAction):
             }
 
     def register(self):
+        # ensure session has been finishing to load and discovered locations.
+        self.session.event_hub.subscribe(
+            'topic=ftrack.api.session.ready',
+            self._register
+        )
+
+    def _register(self, event):
         self.session.event_hub.subscribe(
             'topic=ftrack.action.discover',
             self._discover
         )
 
-        # self.session.event_hub.subscribe(
-        #     'topic=ftrack.action.launch and data.actionIdentifier={0}'
-        #     ' and data.location={1}'.format(
-        #         self.identifier,
-        #         self.location
-        #     ),
-        #     self.launch
-        # )
+        self.session.event_hub.subscribe(
+            'topic=ftrack.action.launch and data.actionIdentifier={0}'
+            ' and data.location="{1}"'.format(
+                self.identifier,
+                self.location['name']
+            ),
+            self._launch
+        )
+
         #
         # self.session.event_hub.subscribe(
         #     'data.actionIdentifier={0}-to-ftrack'.format(self.location),
