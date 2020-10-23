@@ -42,7 +42,7 @@ def configure_location(session, event):
         prefix=DISK_PREFIX
     )
     location.structure = _standard.StandardStructure()
-    location.priority = 200 #1-sys.maxint
+    location.priority = 1-sys.maxint
 
     logger.warning(
         u'Registering Using location {0} @ {1} with priority {2}'.format(

@@ -397,6 +397,9 @@ class Sync(BaseAction):
             'data.actionIdentifier={0}-to-ftrack'.format(self.location['name']),
             self.sync_there
         )
+
+
+
         self.session.event_hub.subscribe(
             'data.actionIdentifier=syncto-{0}'.format(self.location['name']),
             self.sync_here
