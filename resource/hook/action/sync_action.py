@@ -1,7 +1,8 @@
 
 import os
 import sys
-import functools
+import logging
+
 dependencies_directory = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'dependencies')
 )
@@ -11,13 +12,14 @@ import ftrack_api
 from ftrack_action_handler.action import BaseAction
 from ftrack_freelancer_location import sync
 
+logger = logging.getLogger('ftrack_freelancer_location.sync_action')
+
 
 class Sync(BaseAction):
 
     name = 'ftrack synctool'
     label = 'ftrack synctool'
     identifier = 'ftrack.fsync'
-    variant = 'Sync To...'
 
     def __init__(self, session):
         super(Sync, self).__init__(session)
@@ -26,8 +28,14 @@ class Sync(BaseAction):
         self._ignored_locations = [
             'ftrack.origin',
             'ftrack.server',
-            'ftrack.unmanaged'
+            'ftrack.unmanaged',
+            'ftrack.connect',
+            'ftrack.review'
         ]
+
+    @property
+    def variant(self):
+        return 'Sync @ {}'.format(self.location['name'])
 
     @property
     def location(self):
@@ -58,8 +66,8 @@ class Sync(BaseAction):
 
         locations = self.get_locations(name=True)
 
-        if exclude_self:
-            locations = [x for x in locations if not x == self.location['name']]
+        # if exclude_self:
+        #     locations = [x for x in locations if not x == self.location['name']]
 
         # filter out ftrack locations from sync
         locations = [x for x in locations if x not in self._ignored_locations]
@@ -95,13 +103,34 @@ class Sync(BaseAction):
                 'Destination location %s does not exist' % dest_location
             )
 
-        sync_event = event.copy()
-        sync_event['data']['actionIdentifier'] = 'syncto-%s' % dest_location
-        sync_event['source']['location'] = self.location['name']
-        sync_event['target'] = {'location': dest_location}
+        event['data']['actionIdentifier'] = 'syncto-%s' % dest_location
+        event['source']['location'] = self.location['name']
+        event['target'] = {'location': dest_location}
 
-        self.logger.debug("Built sync event %s" % sync_event)
-        return sync_event
+        self.logger.warning("Built sync event %s" % event)
+        return event
+
+    def get_selection(self, event):
+        '''From a raw event dictionary, extract the selected entities.
+
+        :param event: Raw ftrack event
+        :type event: dict
+        :returns: List of entity dictionaries
+        :rtype: List of dict'''
+
+        data = event['data']
+        selection = data.get('selection', [])
+        seleted_items = ', '.join([s.get('entityId') for s in selection])
+        return selection
+
+    def get_user(self, event):
+        '''From a raw event dictionary, extract the source user.
+
+        :param event: Raw ftrack event
+        :type event: dict
+        :returns: Id of the user.
+        :rtype: str'''
+        return event['source']['user']['username']
 
     def get_locations_ui(self, event):
 
@@ -241,6 +270,8 @@ class Sync(BaseAction):
         return event
 
     def sync_here(self, event=None):
+
+        print 'SYNC event', event
         try:
             sync.on_sync_to_destination(
                 self.session,
@@ -266,8 +297,10 @@ class Sync(BaseAction):
             _id = event['source']['id']
             source_location = event['data']['values']['source_location']
             dest_location = event['data']['values']['dest_location']
+
             user_id = self.get_user(event)
             selection = self.get_selection(event)
+
             sync.on_sync_to_remote(
                 self.session,
                 source_location,
@@ -275,7 +308,8 @@ class Sync(BaseAction):
                 user_id,
                 selection
             )
-            self.location_data.pop(_id) if _id in self.location_data else None
+            self._location_data.pop(_id) if _id in self._location_data else None
+
         except Exception:
             import traceback
             self.logger.error(traceback.format_exc())
@@ -328,7 +362,8 @@ class Sync(BaseAction):
                     'success': False,
                     'message': e
                 }
-            event['data']['actionIdentifier'] = '%s-to-ftrack' % self.location
+
+            event['data']['actionIdentifier'] = '%s-to-ftrack' % self.location['name']
             self.session.event_hub.publish(event)
 
             return {
@@ -358,15 +393,14 @@ class Sync(BaseAction):
             self._launch
         )
 
-        #
-        # self.session.event_hub.subscribe(
-        #     'data.actionIdentifier={0}-to-ftrack'.format(self.location),
-        #     self.sync_there
-        # )
-        # self.session.event_hub.subscribe(
-        #     'data.actionIdentifier=syncto-{0}'.format(self.location),
-        #     self.sync_here
-        # )
+        self.session.event_hub.subscribe(
+            'data.actionIdentifier={0}-to-ftrack'.format(self.location['name']),
+            self.sync_there
+        )
+        self.session.event_hub.subscribe(
+            'data.actionIdentifier=syncto-{0}'.format(self.location['name']),
+            self.sync_here
+        )
 
 
 def register(session, **kwargs):

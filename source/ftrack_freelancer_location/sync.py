@@ -1,14 +1,12 @@
 import ftrack_api
 import logging
+import json
 
-logger = logging.getLogger(__name__)
-ftrack_api
-
-
-sync_serve_name = 'ftrack.server'
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 
-def on_sync_to_destination(session, source_id, destination_id, components, userId):
+def on_sync_to_destination(session, source_id, destination_id, components, user_id):
     ''' Callback for when files are copied from the cloud location into the
     destination one.
 
@@ -18,30 +16,32 @@ def on_sync_to_destination(session, source_id, destination_id, components, userI
         *userId* : the id of the user who requested the sync.
 
     '''
+    components = [session.get('Component', cid['id']) for cid in components]
+
     # get location objects
     source_location = session.get('Location', source_id)
     destination_location = session.get('Location', destination_id)
-    logger.debug("Sync to dest: source loc = %s, dest loc = %s" % (source_location, destination_location))
-
+    logger.warning("Sync to dest: source loc = %s, dest loc = %s" % (source_location, destination_location))
     # get location accessors
-    source_accessor = source_location.getAccessor()
-    destination_accessor = destination_location.getAccessor()
+    source_accessor = source_location.accessor
+    destination_accessor = destination_location.accessor
 
-    logger.debug("Sync to dest: source acc = %s, dest acc = %s" % (source_accessor, destination_accessor))
+    logger.warning("Sync to dest: source acc = %s, dest acc = %s" % (source_accessor, destination_accessor))
     # get the location names
-    source_name = source_location.getName()
-    destination_name = destination_location.getName()
-    logger.debug("Sync to dest: source name = %s, dest name = %s" % (source_name, destination_name))
+    source_name = source_location['name']
+    destination_name = destination_location['name']
+    logger.warning("Sync to dest: source name = %s, dest name = %s" % (source_name, destination_name))
 
     # start the job
-    job = ftrack.createJob(
-            description="Sync from %s to %s " % (
-                source_name,
-                destination_name
-            ),
-            status="running",
-            user=ftrack.User(userId)
-    )
+    job = session.create('Job', {
+        'description':"Sync from %s to %s " % (
+            source_name,
+            destination_name
+        ),
+        'user': session.get('User', user_id),
+        'status': 'running'
+    })
+    session.commit()
 
     # sanity checks for the transfer
     if not all([source_accessor, destination_accessor]):
@@ -49,8 +49,10 @@ def on_sync_to_destination(session, source_id, destination_id, components, userI
             destination_name,
             source_name
         )
-        job.setDescription(message)
-        job.setStatus('failed')
+        job['data'] = json.dumps({
+            'description': message
+        })
+        job['status'] = 'failed'
         logger.warning(message)
         return
 
@@ -66,37 +68,45 @@ def on_sync_to_destination(session, source_id, destination_id, components, userI
         component_id = component['id']
         component_name = component['name']
         if 'ftrackreview' in component_name:
-            logger.debug('Component %s can not be sync' % component_name)
+            logger.warning('Component %s can not be sync' % component_name)
             continue
 
-        destination_available = destination_location.getComponentAvailabilities(
-            [component_id]
-        )[0]
+        destination_available = destination_location.get_component_availability(
+            component
+        )
 
-        source_available = source_location.getComponentAvailabilities(
-            [component_id]
-        )[0]
+        source_available = source_location.get_component_availability(
+            component
+        )
 
         if source_available == 0.0:
             status = 'component %s is not available in %s' % (
                 component_name, source_name
             )
             logger.warning(status)
-            job.setDescription(status)
-            job.setStatus('failed')
+            job['data'] = json.dumps({
+                'description': status
+            })
+            job['status'] = 'failed'
+            session.commit()
+
             continue
         else:
             status = 'component %s is available in %s' % (
                 component_name, source_name
             )
-            job.setDescription(status)
+            job['data'] = json.dumps({
+                'description': status
+            })
+            session.commit()
 
-        logger.info(
+
+        logger.warning(
             '%s availability in %s is %s' % (
                 component_name, source_name, source_available
             )
         )
-        logger.info(
+        logger.warning(
             '%s availability in %s is %s' % (
                 component_name, destination_name, destination_available
             )
@@ -107,9 +117,13 @@ def on_sync_to_destination(session, source_id, destination_id, components, userI
                 component_name,
                 source_name,
                 destination_name
-                )
-            job.setDescription(status)
+            )
+            job['data'] = json.dumps({
+                'description': status
+            })
             logger.warning(status)
+            session.commit()
+
             continue
 
         message = 'copying %s, from %s to %s' % (
@@ -118,15 +132,19 @@ def on_sync_to_destination(session, source_id, destination_id, components, userI
                 destination_name
         )
 
-        logger.info(message)
-        job.setDescription(message)
+        logger.warning(message)
+        job['data'] = json.dumps({
+            'description': message
+        })
+        session.commit()
 
         try:
-            destination_location.addComponent(
-                source_location.getComponent(component_id)
+            destination_location.add_component(
+                component,
+                source_location
             )
 
-        except ftrack.ComponentInLocationError, error:
+        except ftrack_api.exception.ComponentInLocationError, error:
             logger.warning(error)
             continue
 
@@ -139,11 +157,15 @@ def on_sync_to_destination(session, source_id, destination_id, components, userI
             import traceback
             logger.error(traceback.format_exc())
             job.setStatus('failed')
+            session.commit()
 
-    job.setStatus('done')
-    logger.info('Finished sync of %i components.' % len(components))
+    job['status'] = 'done'
+    session.commit()
 
-def on_sync_to_remote(session, source, destination, userId, selection):
+    logger.warning('Finished sync of %i components.' % len(components))
+
+
+def on_sync_to_remote(session, source, destination, user_id, selection):
     ''' Callback for when files are copied from the local location to the cloud
         one.
 
@@ -156,60 +178,71 @@ def on_sync_to_remote(session, source, destination, userId, selection):
         destination.
     '''
     store_mapping = {
-        'sync': sync_serve_name,
+        'sync': 'ftrack.server',
         'input': source,
         'output': destination
     }
 
-    logger.debug("Sync to remote: source = %s, dest = %s, user = %s, sel = %s" % (source, destination, userId, selection))
+    logger.warning("Sync to remote: source = %s, dest = %s, user = %s, sel = %s" % (source, destination, user_id, selection))
 
     results = {}
     for location in session.query('Location').all():
         location_name = location['name']
         for store_type, store_name in store_mapping.items():
             if store_name == location_name:
-                logger.debug("sync to remote, found location %s, store = %s, type = %s" % (location_name, store_name, store_type))
+                logger.warning("sync to remote, found location %s, store = %s, type = %s" % (location_name, store_name, store_type))
                 results[store_type] = location
 
     source_name = results['input']['name']
     sync_name = results['sync']['name']
-    logger.debug("Sync to remote: source name = %s, sync name = %s" % (source_name, sync_name))
+    logger.warning("Sync to remote: source name = %s, sync name = %s" % (source_name, sync_name))
 
     # create a job to inform the user that something is going on
     message = " Sync from %s to %s" % (source_name, sync_name)
-    logger.info(message)
-    # job = ftrack.createJob(
-    #         description=message,
-    #         status="running",
-    #         user=ftrack.User(userId)
-    # )
+    logger.warning(message)
+
+    job = session.create('Job', {
+        'data': json.dumps({
+            'description': message
+        }),
+        'user': session.get('User', user_id),
+        'status': 'running'
+    })
+    session.commit()
 
     components = []
     for s in selection:
         version = session.get('AssetVersion', s['entityId'])
 
         # get all the asset components
-        for component in version.getComponents():
-            component_name = component.getName()
-            component_id = component.getId()
+        for component in version['components']:
+            component_name = component['name']
+            component_id = component['id']
+
             components.append(
                 {
-                    'id': component.getId(),
+                    'id': component_id,
                     'name': component_name
                 }
             )
 
-            job.setDescription('Sync %s from %s to %s' % (
-                component_name,
-                source_name,
-                sync_name
-                )
+            job['data'] = json.dumps(
+                {
+                    'description': 'Sync %s from %s to %s' % (
+                        component_name,
+                        source_name,
+                        sync_name
+                    )
+                }
             )
+            session.commit()
+
             # check if the component is available in the source location
-            logger.debug("input = %s of type %s" % (results['input'], type(results['input'])))
-            source_component = results['input'].getComponentAvailabilities(
-                [component_id]
-            )[0]
+            logger.warning("input = %s of type %s" % (results['input'], type(results['input'])))
+
+            source_component = results['input'].get_component_availability(
+                component
+            )
             if source_component != 100.0:
                 status = '%s not available %s, availability = %s' % (
                     component_name,
@@ -217,60 +250,73 @@ def on_sync_to_remote(session, source, destination, userId, selection):
                     source_component
                 )
                 logger.warning(status)
-                job.setDescription(status)
+                job['data'] = json.dumps(
+                    {
+                        'description': status
+                    }
+                )
+                session.commit()
+
                 continue
 
             # check whether the component is already available
             # in the sync location
-            synced_component = results['sync'].getComponentAvailabilities(
-                [component_id]
-            )[0]
+
+            synced_component = results['sync'].get_component_availability(
+                component
+            )
+
             if synced_component == 100.0:
                 status = '%s already sync to %s' % (
                     component_name,
                     sync_name
                 )
                 logger.warning(status)
-                job.setDescription(status)
+                job['data'] = json.dumps(
+                    {
+                        'description': status
+                    }
+                )
                 continue
 
-            logger.info('copying %s , from %s to %s' % (
-                    component.getName(),
+            logger.warning('copying %s , from %s to %s' % (
+                    component['name'],
                     source_name,
                     sync_name
-                    )
+                )
             )
 
             try:
-                results['sync'].addComponent(
-                    results['input'].getComponent(component_id)
+                results['sync'].add_component(
+                    component, results['input']
                 )
 
-            except ftrack.ComponentInLocationError, error:
+            except ftrack_api.exception.ComponentInLocationError, error:
                 logger.warning(error)
                 continue
 
             except Exception:
                 import traceback
                 logger.error(traceback.format_exc())
-                job.setStatus('failed')
+                job['status'] = 'failed'
                 # sys.exit(1)
 
-    job.setStatus('done')
-    logger.info('Finished uploading %i components.' % len(components))
+    job['status'] = 'done'
+    logger.warning('Finished uploading %i components.' % len(components))
 
-    # emit the signal to trigger the destination sync
-    event = {
-        'data': {
-            'actionIdentifier': 'syncto-%s' % results['output'].getName(),
+    event = ftrack_api.event.base.Event(
+        topic='ftrack.sync',
+        data={
+            'actionIdentifier': 'syncto-%s' % results['output']['name'],
             'components': components,
             'locations': {
-                'sync': results['sync'].getId(),
-                'source': results['input'].getId(),
-                'destination': results['output'].getId()
+                'sync': results['sync']['id'],
+                'source': results['input']['id'],
+                'destination': results['output']['id']
             }
         },
-        'source': {'user': userId},
-        'topic': 'ftrack.sync'
-    }
+        source={'user': user_id}
+    )
+
+    logger.warning(event)
     session.event_hub.publish(event)
