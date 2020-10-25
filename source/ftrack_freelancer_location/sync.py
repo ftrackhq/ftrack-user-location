@@ -61,8 +61,12 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
     for component in components:
         component_id = component['id']
         component_name = component['name']
+
+        # exclude ftrack-review component names ?
         if 'ftrackreview' in component_name:
-            logger.warning('Component {} can not be sync'.format(component_name))
+            logger.warning(
+                'Component {} can not be sync'.format(component_name)
+            )
             continue
 
         destination_available = destination_location.get_component_availability(
@@ -94,13 +98,12 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
             })
             session.commit()
 
-
-        logger.warning(
+        logger.debug(
             '{} availability in {} is {}'.format(
                 component_name, source_name, source_available
             )
         )
-        logger.warning(
+        logger.debug(
             '{} availability in {} is {}'.format(
                 component_name, destination_name, destination_available
             )
@@ -115,7 +118,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
             job['data'] = json.dumps({
                 'description': status
             })
-            logger.warning(status)
+            logger.debug(status)
             session.commit()
 
             continue
@@ -126,7 +129,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
                 destination_name
         )
 
-        logger.warning(message)
+        logger.debug(message)
         job['data'] = json.dumps({
             'description': message
         })
@@ -150,7 +153,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
             ))
             import traceback
             logger.error(traceback.format_exc())
-            job.setStatus('failed')
+            job['status'] = 'failed'
             session.commit()
 
     job['status'] = 'done'
@@ -176,30 +179,37 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
         'input': source,
         'output': destination
     }
+    user = session.get('User', user_id)
 
-    logger.warning("Sync to remote: source = {}, dest = {}, user = {}, sel = {}".format(source, destination, user_id, selection))
+    logger.info(
+        "User {} is syncing {} items from {} to {}".format(
+            user['name'], selection,
+            source, destination)
+    )
 
     results = {}
-    for location in session.query('Location').all():
+    for location in session.query('select name from Location').all():
         location_name = location['name']
         for store_type, store_name in store_mapping.items():
             if store_name == location_name:
-                logger.warning("sync to remote, found location {}, store = {}, type = {}".format(location_name, store_name, store_type))
+                logger.debug(
+                    "Syncing to remote, found location {} in {} of type = {}".format(
+                        location_name, store_name, store_type)
+                    )
                 results[store_type] = location
 
     source_name = results['input']['name']
     sync_name = results['sync']['name']
-    logger.warning("Sync to remote: source name = {}, sync name = {}".format(source_name, sync_name))
 
     # create a job to inform the user that something is going on
     message = " Sync from {} to {}".format(source_name, sync_name)
-    logger.warning(message)
+    logger.info(message)
 
     job = session.create('Job', {
         'data': json.dumps({
             'description': message
         }),
-        'user': session.get('User', user_id),
+        'user': user,
         'status': 'running'
     })
     session.commit()
@@ -232,18 +242,18 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
             session.commit()
 
             # check if the component is available in the source location
-            logger.warning("input = {} of type {}".format(results['input'], type(results['input'])))
+            logger.debug("input = {} of type {}".format(results['input'], type(results['input'])))
 
             source_component = results['input'].get_component_availability(
                 component
             )
             if source_component != 100.0:
-                status = '{} not available {}, availability = {}'.format(
+                status = '{} not available {} availability = {}'.format(
                     component_name,
                     source_name,
                     source_component
                 )
-                logger.warning(status)
+                logger.debug(status)
                 job['data'] = json.dumps(
                     {
                         'description': status
@@ -265,7 +275,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
                     component_name,
                     sync_name
                 )
-                logger.warning(status)
+                logger.debug(status)
                 job['data'] = json.dumps(
                     {
                         'description': status
@@ -273,7 +283,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
                 )
                 continue
 
-            logger.warning('copying {} , from {} to {}'.format(
+            logger.debug('copying {} from {} to {}'.format(
                     component['name'],
                     source_name,
                     sync_name

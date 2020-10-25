@@ -61,10 +61,14 @@ class SyncAction(BaseAction):
             'label': label,
             'type': 'enumerator',
             'name': field_id,
+            'value': default_value or [],
             'data': []
         }
 
         locations = self.get_locations(name=True)
+
+        if exclude_self:
+            locations = [x for x in locations if not x == self.location['name']]
 
         # filter out ftrack locations from sync
         locations = [x for x in locations if x not in self._ignored_locations]
