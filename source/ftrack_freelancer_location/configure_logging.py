@@ -70,11 +70,11 @@ def configure_logging(logger_name, level=None, format=None, extra_modules=None):
         'disable_existing_loggers': False,
         'handlers': {
             'console': {
-                'level': 'WARNING',
                 'class': 'logging.StreamHandler',
                 'level': logging._levelNames[level],
                 'formatter': 'file',
                 'stream': 'ext://sys.stdout',
+                'filters': ['filtered'],
             },
             'file': {
                 'class': 'logging.handlers.RotatingFileHandler',

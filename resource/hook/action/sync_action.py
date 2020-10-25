@@ -1,3 +1,5 @@
+# :coding: utf-8
+# :copyright: Copyright (c) 2018 ftrack
 
 import os
 import sys
@@ -110,26 +112,6 @@ class SyncAction(BaseAction):
 
         return event
 
-    def get_selection(self, event):
-        '''From a raw event dictionary, extract the selected entities.
-
-        :param event: Raw ftrack event
-        :type event: dict
-        :returns: List of entity dictionaries
-        :rtype: List of dict'''
-
-        data = event['data']
-        selection = data.get('selection', [])
-        return selection
-
-    def get_user(self, event):
-        '''From a raw event dictionary, extract the source user.
-
-        :param event: Raw ftrack event
-        :type event: dict
-        :returns: Id of the user.
-        :rtype: str'''
-        return event['source']['user']['username']
 
     def get_locations_ui(self, event):
 
@@ -196,15 +178,12 @@ class SyncAction(BaseAction):
             source_location = event['data']['values']['source_location']
             dest_location = event['data']['values']['dest_location']
 
-            user_id = self.get_user(event)
-            selection = self.get_selection(event)
-
             sync.on_sync_to_remote(
                 self.session,
                 source_location,
                 dest_location,
-                user_id,
-                selection
+                event['source']['user']['id'],
+                event['data'].get('selection', [])
             )
             self._location_data.pop(_id) if _id in self._location_data else None
 
@@ -233,8 +212,10 @@ class SyncAction(BaseAction):
     def _discover(self, event):
         accepts = super(SyncAction, self)._discover(event)
         # add location to discovered item.
-        for item in accepts['items']:
-            item['location'] = self.location['name']
+
+        if accepts:
+            for item in accepts['items']:
+                item['location'] = self.location['name']
 
         return accepts
 
