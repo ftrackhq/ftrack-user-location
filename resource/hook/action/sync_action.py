@@ -57,7 +57,7 @@ class SyncAction(BaseAction):
 
     def get_locations_menu(
             self, field_id, label=None,
-            default_value=None, exclude_self=False):
+            default_value=None, exclude_self=False, exclude_inaccessibles=False):
 
         location_menu = {
             'label': label,
@@ -67,20 +67,25 @@ class SyncAction(BaseAction):
             'data': []
         }
 
-        locations = self.get_locations(name=True)
+        locations = self.get_locations()
 
         if exclude_self:
-            locations = [x for x in locations if not x == self.location['name']]
+            locations = [x for x in locations if not x['name'] == self.location['name']]
 
         # filter out ftrack locations from sync
-        locations = [x for x in locations if x not in self._ignored_locations]
+        locations = [x for x in locations if x['name'] not in self._ignored_locations]
+
+        if exclude_inaccessibles:
+            # filter non accessible locations
+            locations = [x for x in locations if x.accessor]
+
         locations = sorted(locations)
 
         for location in locations:
 
             item = {
-                'label': location,
-                'value': location
+                'label': location['name'],
+                'value': location['name']
             }
 
             location_menu['data'].append(
@@ -134,7 +139,8 @@ class SyncAction(BaseAction):
             self.get_locations_menu(
                 'source_location',
                 label='Source',
-                default_value=self.get_current_location(name=True)
+                default_value=self.get_current_location(name=True),
+                # exclude_inaccessibles=True
             )
         )
 
@@ -265,16 +271,19 @@ class SyncAction(BaseAction):
             self._launch
         )
 
-        # listen to transfer events.
-        self.session.event_hub.subscribe(
-            'data.actionIdentifier={0}-to-ftrack'.format(self.location['name']),
-            self.sync_there
-        )
+        # register event for every accessible location
+        for location in self.get_locations():
+            if location.accessor:
+                # listen to transfer events.
+                self.session.event_hub.subscribe(
+                    'data.actionIdentifier={0}-to-ftrack'.format(location['name']),
+                    self.sync_there
+                )
 
-        self.session.event_hub.subscribe(
-            'data.actionIdentifier=syncto-{0}'.format(self.location['name']),
-            self.sync_here
-        )
+                self.session.event_hub.subscribe(
+                    'data.actionIdentifier=syncto-{0}'.format(location['name']),
+                    self.sync_here
+                )
 
 
 def register(session, **kwargs):
