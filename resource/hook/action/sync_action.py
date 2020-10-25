@@ -15,14 +15,14 @@ from ftrack_freelancer_location import sync
 logger = logging.getLogger('ftrack_freelancer_location.sync_action')
 
 
-class Sync(BaseAction):
+class SyncAction(BaseAction):
 
-    name = 'ftrack synctool'
-    label = 'ftrack synctool'
+    name = 'ftrack sync tool'
+    label = 'ftrack sync tool'
     identifier = 'ftrack.fsync'
 
     def __init__(self, session):
-        super(Sync, self).__init__(session)
+        super(SyncAction, self).__init__(session)
         self._location_data = {}
         self._sync_data = {}
         self._ignored_locations = [
@@ -66,9 +66,6 @@ class Sync(BaseAction):
 
         locations = self.get_locations(name=True)
 
-        # if exclude_self:
-        #     locations = [x for x in locations if not x == self.location['name']]
-
         # filter out ftrack locations from sync
         locations = [x for x in locations if x not in self._ignored_locations]
         locations = sorted(locations)
@@ -95,19 +92,18 @@ class Sync(BaseAction):
 
         if not self.location_exists(source_location):
             raise ValueError(
-                'Source location %s does not exist' % source_location
+                'Source location {} does not exist'.format(source_location)
             )
 
         if not self.location_exists(dest_location):
             raise ValueError(
-                'Destination location %s does not exist' % dest_location
+                'Destination location {} does not exist'.format(dest_location)
             )
 
-        event['data']['actionIdentifier'] = 'syncto-%s' % dest_location
+        event['data']['actionIdentifier'] = 'syncto-{}'.format(dest_location)
         event['source']['location'] = self.location['name']
         event['target'] = {'location': dest_location}
 
-        self.logger.warning("Built sync event %s" % event)
         return event
 
     def get_selection(self, event):
@@ -137,7 +133,7 @@ class Sync(BaseAction):
 
         menu['items'].append(
             {
-                'value': '## %s ##' % self.location['name'],
+                'value': '## {} ##'.format(self.location['name']),
                 'type': 'label'
             }
         )
@@ -168,107 +164,8 @@ class Sync(BaseAction):
         event.update(menu)
         return event
 
-    @staticmethod
-    def bytes_to_mb(value):
-        return value/1024.0/1024.0
-
-    @staticmethod
-    def htm_tab(amount=4):
-        return '&nbsp;'*amount
-
-    def get_review_ui(self, event):
-
-        _id = event['source']['id']
-
-        menu = {'items': []}
-
-        items = []
-
-        items.append(
-            {
-                'value': '## Sync Review ##',
-                'type': 'label'
-            }
-        )
-
-        locations = event['data']['values']
-
-        items.append(
-
-            {
-                'value': '**{}** to **{}**'.format(
-                    locations['source_location'],
-                    locations['dest_location']
-                ),
-                'type': 'label'
-            }
-        )
-
-        items.append(
-            {
-                'value': '## Asset Review ##',
-                'type': 'label'
-            }
-        )
-
-        data = self.sync_data.get(_id, {})
-
-        total = 0.0
-        if data:
-            for key, val in sorted(data.items(), key=lambda x: x[0]):
-                items.append(
-                    {
-                        'value': '### %s' % key,
-                        'type': 'label'
-                    }
-                )
-                for comp in val:
-                    total += comp['size']
-
-                    size = self.bytes_to_mb(comp['size'])
-
-                    name = '%s%s: %f MB'
-                    name = name % (self.htm_tab(12), comp['name'], size)
-
-                    items.append(
-                        {
-                            'value': name,
-                            'type': 'label'
-                        }
-                    )
-
-            items.append(
-                {
-                    'value': "",
-                    'type': 'label'
-                }
-            )
-
-            total_str = '**Total data**: %fMB' % self.bytes_to_mb(total)
-            items.append(
-                {
-                    'value': total_str,
-                    'type': 'label'
-                }
-            )
-
-        else:
-            items.append(
-                {
-                    'value': 'Detailed asset information is not available.',
-                    'type': 'label'
-                }
-            )
-
-        menu['items'] = items
-
-        event.update(menu)
-
-        return event
-
     def sync_here(self, event=None):
 
-        print 'SYNC event', event
         try:
             sync.on_sync_to_destination(
                 self.session,
@@ -323,6 +220,10 @@ class Sync(BaseAction):
         if not entities:
             return False
 
+        entity_type, entity_id = entities[0]
+        if entity_type != 'AssetVersion':
+            return False
+
         return True
 
     def _discover(self, event):
@@ -345,8 +246,10 @@ class Sync(BaseAction):
                 }]
             }
 
+        return False
+
     def launch(self, session, entities, event):
-        self.logger.warn("Sync action launched, location = %s" % self.location)
+        self.logger.info("Sync action launched from location = {}".format(self.location))
 
         if 'values' not in event['data']:
             event = self.get_locations_ui(event)
@@ -360,7 +263,7 @@ class Sync(BaseAction):
                     'message': e
                 }
 
-            event['data']['actionIdentifier'] = '%s-to-ftrack' % self.location['name']
+            event['data']['actionIdentifier'] = '{}-to-ftrack'.format(self.location['name'])
             self.session.event_hub.publish(event)
 
             return {
@@ -376,11 +279,13 @@ class Sync(BaseAction):
         )
 
     def _register(self, event):
+        # discover action
         self.session.event_hub.subscribe(
             'topic=ftrack.action.discover',
             self._discover
         )
 
+        # launch action
         self.session.event_hub.subscribe(
             'topic=ftrack.action.launch and data.actionIdentifier={0}'
             ' and data.location="{1}"'.format(
@@ -390,6 +295,7 @@ class Sync(BaseAction):
             self._launch
         )
 
+        # listen to transfer events.
         self.session.event_hub.subscribe(
             'data.actionIdentifier={0}-to-ftrack'.format(self.location['name']),
             self.sync_there
@@ -409,7 +315,5 @@ def register(session, **kwargs):
     if not isinstance(session, ftrack_api.Session):
         return
 
-    # Sync.variant = 'Sync (%s) To... ' % Sync.location
-    # print "Registering Sync (%s) action" % Sync.location
-    action = Sync(session)
+    action = SyncAction(session)
     action.register()
