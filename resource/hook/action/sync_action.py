@@ -112,7 +112,6 @@ class SyncAction(BaseAction):
 
         return event
 
-
     def get_locations_ui(self, event):
 
         menu = {'items': []}
@@ -220,7 +219,7 @@ class SyncAction(BaseAction):
         return accepts
 
     def launch(self, session, entities, event):
-        self.logger.info("Sync action launched from location = {}".format(self.location))
+        self.logger.info("Sync action launched from location {}".format(self.location['name']))
 
         if 'values' not in event['data']:
             event = self.get_locations_ui(event)
