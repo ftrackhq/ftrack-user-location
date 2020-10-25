@@ -54,6 +54,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
         })
         job['status'] = 'failed'
         logger.warning(message)
+        session.commit()
         return
 
     # now try to do the sync for each component
@@ -292,8 +293,11 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
                 import traceback
                 logger.error(traceback.format_exc())
                 job['status'] = 'failed'
+                session.commit()
 
     job['status'] = 'done'
+    session.commit()
+
     logger.warning('Finished uploading {} components.'.format(len(components)))
 
     event = ftrack_api.event.base.Event(
