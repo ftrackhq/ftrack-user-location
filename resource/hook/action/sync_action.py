@@ -227,26 +227,12 @@ class SyncAction(BaseAction):
         return True
 
     def _discover(self, event):
-        args = self._translate_event(
-            self.session, event
-        )
-        accepts = self.discover(
-            self.session, *args
-        )
+        accepts = super(SyncAction, self)._discover(event)
+        # add location to discovered item.
+        for item in accepts['items']:
+            item['location'] = self.location['name']
 
-        if accepts:
-            return {
-                'items': [{
-                    'icon': self.icon,
-                    'label': self.label,
-                    'variant': self.variant,
-                    'description': self.description,
-                    'actionIdentifier': self.identifier,
-                    'location': self.location['name']
-                }]
-            }
-
-        return False
+        return accepts
 
     def launch(self, session, entities, event):
         self.logger.info("Sync action launched from location = {}".format(self.location))
