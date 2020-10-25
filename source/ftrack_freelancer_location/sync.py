@@ -33,10 +33,10 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
     source_name = source_location['name']
     destination_name = destination_location['name']
 
-    logger.debug(
-        "Syncing from {}@{} to {}@{}".format(
-            source_name, destination_name,
-            destination_location, destination_accessor
+    logger.info(
+        "Syncing from {} to {}".format(
+            source_name,
+            destination_name,
         )
     )
 
@@ -70,9 +70,9 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
         component_id = component['id']
         component_name = component['name']
 
-        # # exclude ftrack-review component names ?
-        # if 'ftrackreview' in component_name:
-        #     continue
+        # exclude ftrack-review component names ?
+        if 'ftrackreview' in component_name:
+            continue
 
         destination_available = destination_location.get_component_availability(
             component
@@ -83,7 +83,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
         )
 
         if source_available == 0.0:
-            status = 'Component {} is not available in {}'.format(
+            status = 'Component "{}" is not available in {}'.format(
                 component_name, source_name
             )
             logger.warning(status)
@@ -94,7 +94,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
             session.commit()
             continue
         else:
-            status = 'component {} is available in {}'.format(
+            status = 'component "{}" is available in {}'.format(
                 component_name, source_name
             )
             job['data'] = json.dumps({
@@ -103,18 +103,18 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
             session.commit()
 
         logger.debug(
-            '{} availability in {} is {}'.format(
+            '"{}" availability in {} is {}'.format(
                 component_name, source_name, source_available
             )
         )
         logger.debug(
-            '{} availability in {} is {}'.format(
+            '"{}" availability in {} is {}'.format(
                 component_name, destination_name, destination_available
             )
         )
 
         if destination_available == 100.0:
-            status = '{} already sync from {} to {}'.format(
+            status = '"{}" already sync from {} to {}'.format(
                 component_name,
                 source_name,
                 destination_name
@@ -126,7 +126,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
             session.commit()
             continue
 
-        message = 'Copying Component {} from {} to {}'.format(
+        message = 'Copying Component "{}" from {} to {}'.format(
                 component_name,
                 source_name,
                 destination_name
@@ -149,7 +149,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
             continue
 
         except Exception, error:
-            logger.error('Component {} with ID {} failed: {}'.format(
+            logger.error('Component "{}" with ID {} failed: {}'.format(
                 component_name,
                 component_id,
                 error
@@ -187,7 +187,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
 
     logger.info(
         "User {} is syncing {} items from {} to {}".format(
-            user['username'], selection,
+            user['username'], len(selection),
             source, destination)
     )
 
@@ -226,7 +226,6 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
         for component in version['components']:
             component_name = component['name']
             component_id = component['id']
-
             components.append(
                 {
                     'id': component_id,
@@ -234,16 +233,19 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
                 }
             )
 
+            status = 'Syncing {} from {} to {}'.format(
+                component_name,
+                source_name,
+                sync_name
+            )
+
             job['data'] = json.dumps(
                 {
-                    'description': 'Syncing {} from {} to {}'.format(
-                        component_name,
-                        source_name,
-                        sync_name
-                    )
+                    'description': status
                 }
             )
             session.commit()
+            logger.debug(status)
 
             source_component = results['input'].get_component_availability(
                 component
@@ -312,7 +314,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
     event = ftrack_api.event.base.Event(
         topic='ftrack.sync',
         data={
-            'actionIdentifier': 'syncto-{}'.format(results['output']['name']),
+            'actionIdentifier': 'ftrack-to-{}'.format(results['output']['name']),
             'components': components,
             'locations': {
                 'sync': results['sync']['id'],

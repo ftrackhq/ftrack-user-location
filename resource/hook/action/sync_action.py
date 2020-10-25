@@ -281,7 +281,7 @@ class SyncAction(BaseAction):
                 )
 
                 self.session.event_hub.subscribe(
-                    'data.actionIdentifier=syncto-{0}'.format(location['name']),
+                    'topic=ftrack.sync and data.actionIdentifier=ftrack-to-{0}'.format(location['name']),
                     self.sync_here
                 )
 
