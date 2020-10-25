@@ -1,0 +1,3 @@
+import configure_logging
+
+configure_logging.configure_logging(__name__)

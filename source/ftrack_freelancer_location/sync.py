@@ -2,8 +2,8 @@ import ftrack_api
 import logging
 import json
 
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+
+logger = logging.getLogger(__name__)
 
 
 def on_sync_to_destination(session, source_id, destination_id, components, user_id):
@@ -34,7 +34,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
 
     # start the job
     job = session.create('Job', {
-        'description':"Sync from %s to %s " % (
+        'description': "Sync from %s to %s " % (
             source_name,
             destination_name
         ),
@@ -55,13 +55,6 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
         job['status'] = 'failed'
         logger.warning(message)
         return
-
-    # if STUDIO not in destination_name and SITE not in destination_name:
-    #     message = 'No suitable location found for %s' % destination_name
-    #     job.setStatus('failed')
-    #     job.setDescription(message)
-    #     logger.warning(message)
-    #     return
 
     # now try to do the sync for each component
     for component in components:
@@ -299,7 +292,6 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
                 import traceback
                 logger.error(traceback.format_exc())
                 job['status'] = 'failed'
-                # sys.exit(1)
 
     job['status'] = 'done'
     logger.warning('Finished uploading %i components.' % len(components))
@@ -318,5 +310,4 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
         source={'user': user_id}
     )
 
-    logger.warning(event)
     session.event_hub.publish(event)

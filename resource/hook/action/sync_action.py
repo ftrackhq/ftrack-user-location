@@ -120,7 +120,6 @@ class Sync(BaseAction):
 
         data = event['data']
         selection = data.get('selection', [])
-        seleted_items = ', '.join([s.get('entityId') for s in selection])
         return selection
 
     def get_user(self, event):
@@ -135,23 +134,22 @@ class Sync(BaseAction):
     def get_locations_ui(self, event):
 
         menu = {'items': []}
-        items = []
 
-        items.append(
+        menu['items'].append(
             {
-                'value':'## %s ##' % self.location['name'],
+                'value': '## %s ##' % self.location['name'],
                 'type': 'label'
             }
         )
 
-        items.append(
+        menu['items'].append(
             {
                 'value':'Locations',
                 'type': 'label'
             }
         )
 
-        items.append(
+        menu['items'].append(
             self.get_locations_menu(
                 'source_location',
                 label='Source',
@@ -159,7 +157,7 @@ class Sync(BaseAction):
             )
         )
 
-        items.append(
+        menu['items'].append(
             self.get_locations_menu(
                 'dest_location',
                 label='Destination',
@@ -167,7 +165,6 @@ class Sync(BaseAction):
             )
         )
 
-        menu['items'] = items
         event.update(menu)
         return event
 
@@ -397,8 +394,6 @@ class Sync(BaseAction):
             'data.actionIdentifier={0}-to-ftrack'.format(self.location['name']),
             self.sync_there
         )
-
-
 
         self.session.event_hub.subscribe(
             'data.actionIdentifier=syncto-{0}'.format(self.location['name']),

@@ -7,7 +7,7 @@ import functools
 import logging
 import getpass
 import ftrack_api
-import ftrack_api.accessor.disk
+import ftrack_api.accessor.disk as _disk
 import ftrack_api.structure.standard as _standard
 
 
@@ -38,7 +38,7 @@ def configure_location(session, event):
         }
     )
 
-    location.accessor = ftrack_api.accessor.disk.DiskAccessor(
+    location.accessor = _disk.DiskAccessor(
         prefix=DISK_PREFIX
     )
     location.structure = _standard.StandardStructure()
@@ -57,12 +57,8 @@ def register(api_object, **kw):
     if not isinstance(api_object, ftrack_api.Session):
         return
 
-    if not DISK_PREFIX:
-        logger.error('No disk prefix configured for location.')
-        return
-
     if not os.path.exists(DISK_PREFIX) or not os.path.isdir(DISK_PREFIX):
-        logger.error('Disk prefix location does not exist.')
+        logger.error('Disk prefix {} does not exist.'.format(DISK_PREFIX))
         return
 
     api_object.event_hub.subscribe(
