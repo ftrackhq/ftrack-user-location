@@ -37,11 +37,11 @@ def configure_logging(logger_name, level=None, format=None, extra_modules=None):
     Optionally set *format*, default:
     `%(asctime)s - %(name)s - %(levelname)s - %(message)s`.
 
-    Optional *extra_modules* to extend the modules to be set to *level*.
+    Optional *extra_modules* to extend the modules to be set to *level*. 
     '''
 
     # Provide default values for level and format.
-    format = format or '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format = format or '%(levelname)s - %(threadName)s - %(asctime)s - %(name)s - %(message)s'
     level = level or logging.INFO
 
     log_directory = get_log_directory()
@@ -62,7 +62,7 @@ def configure_logging(logger_name, level=None, format=None, extra_modules=None):
     extra_modules = extra_modules or []
 
     # Cast to list in case is a tuple.
-    modules = ['ftrack_api', 'urllib3', 'requests']
+    modules = ['ftrack_api', 'FTrackCore', 'urllib3', 'requests']
     modules.extend(list(extra_modules))
 
     logging_settings = {
@@ -74,21 +74,18 @@ def configure_logging(logger_name, level=None, format=None, extra_modules=None):
                 'level': logging._levelToName[level],
                 'formatter': 'file',
                 'stream': 'ext://sys.stdout',
-                'filters': ['filtered'],
             },
             'file': {
                 'class': 'logging.handlers.RotatingFileHandler',
                 'level': 'DEBUG',
                 'formatter': 'file',
                 'filename': logfile,
-                'filters': ['filtered'],
                 'mode': 'a',
                 'maxBytes': 10485760,
                 'backupCount': 5,
             },
 
         },
-        'filters': {'filtered': {'name': logger_name}},
         'formatters': {
             'file': {
                 'format': format

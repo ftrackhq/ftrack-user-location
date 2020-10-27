@@ -144,11 +144,11 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
                 source_location
             )
 
-        except ftrack_api.exception.ComponentInLocationError, error:
+        except ftrack_api.exception.ComponentInLocationError as error:
             logger.warning(error)
             continue
 
-        except Exception, error:
+        except Exception as error:
             logger.error('Component "{}" with ID {} failed: {}'.format(
                 component_name,
                 component_id,
@@ -194,7 +194,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
     results = {}
     for location in session.query('select name from Location').all():
         location_name = location['name']
-        for store_type, store_name in store_mapping.items():
+        for store_type, store_name in list(store_mapping.items()):
             if store_name == location_name:
                 logger.debug(
                     "Syncing to remote, found location {} in {} of type = {}".format(
@@ -296,7 +296,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
                     component, results['input']
                 )
 
-            except ftrack_api.exception.ComponentInLocationError, error:
+            except ftrack_api.exception.ComponentInLocationError as error:
                 logger.error(error)
                 continue
 
