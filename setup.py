@@ -103,6 +103,6 @@ setup(
     cmdclass={
         'build_plugin': BuildPlugin,
     },
-    python_requires='>= 2.7.9, < 3.0'  # lucidity does not support yet python3
+    python_requires='>= 2, < 4'  # lucidity does not support yet python3
 
 )
