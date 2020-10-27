@@ -12,9 +12,9 @@ sys.path.append(dependencies_directory)
 
 import ftrack_api
 from ftrack_action_handler.action import BaseAction
-from ftrack_freelancer_location import sync
+from ftrack_user_location import sync
 
-logger = logging.getLogger('ftrack_freelancer_location.sync_action')
+logger = logging.getLogger('ftrack_user_location.sync_action')
 
 
 class SyncAction(BaseAction):

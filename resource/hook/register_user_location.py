@@ -12,7 +12,7 @@ import ftrack_api.structure.standard as _standard
 
 
 logger = logging.getLogger(
-    'ftrack-freelancer-location'
+    'ftrack-user-location'
 )
 
 # Name of the location.

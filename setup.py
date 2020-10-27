@@ -23,7 +23,7 @@ HOOK_PATH = os.path.join(RESOURCE_PATH, 'hook')
 
 # Read version from source.
 with open(os.path.join(
-    SOURCE_PATH, 'ftrack_freelancer_location', '_version.py'
+    SOURCE_PATH, 'ftrack_user_location', '_version.py'
 )) as _version_file:
     VERSION = re.match(
         r'.*__version__ = \'(.*?)\'', _version_file.read(), re.DOTALL
@@ -31,7 +31,7 @@ with open(os.path.join(
 
 
 STAGING_PATH = os.path.join(
-    BUILD_PATH, 'ftrack-freelancer-location-{0}'.format(VERSION)
+    BUILD_PATH, 'ftrack-user-location-{0}'.format(VERSION)
 )
 
 
@@ -71,7 +71,7 @@ class BuildPlugin(Command):
         shutil.make_archive(
             os.path.join(
                 BUILD_PATH,
-                'ftrack-freelancer-location-{0}'.format(VERSION)
+                'ftrack-user-location-{0}'.format(VERSION)
             ),
             'zip',
             STAGING_PATH
@@ -80,9 +80,9 @@ class BuildPlugin(Command):
 
 # Call main setup.
 setup(
-    name='ftrack-freelancer-location',
+    name='ftrack-user-location',
     version=VERSION,
-    description='ftrack freelancer location.',
+    description='ftrack user location.',
     long_description=open(README_PATH).read(),
     keywords='ftrack, integration, connect, location, structure',
     url='https://bitbucket.org/ftrack/ftrack-somehwere',
