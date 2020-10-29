@@ -148,7 +148,7 @@ class SyncAction(BaseAction):
             self.get_locations_menu(
                 'dest_location',
                 label='Destination',
-                exclude_self=True
+                # exclude_self=True
             )
         )
 
