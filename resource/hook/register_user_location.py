@@ -26,6 +26,7 @@ DISK_PREFIX = os.path.join(
 )
 
 if not os.path.exists(DISK_PREFIX):
+    logger.info('Creating folder {}'.format(DISK_PREFIX))
     os.makedirs(DISK_PREFIX)
 
 
