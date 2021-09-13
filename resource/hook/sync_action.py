@@ -6,15 +6,22 @@ import sys
 import logging
 
 dependencies_directory = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', '..', 'dependencies')
+    os.path.join(os.path.dirname(__file__), '..', 'dependencies')
 )
+
 sys.path.append(dependencies_directory)
+
+
 
 import ftrack_api
 from ftrack_action_handler.action import BaseAction
 from ftrack_user_location import sync
 
-logger = logging.getLogger('ftrack_user_location.sync_action')
+
+logger = logging.getLogger(
+    'ftrack_user_location'
+)
+
 
 
 class SyncAction(BaseAction):
@@ -148,7 +155,7 @@ class SyncAction(BaseAction):
             self.get_locations_menu(
                 'dest_location',
                 label='Destination',
-                # exclude_self=True
+                #exclude_self=True
             )
         )
 
@@ -208,6 +215,7 @@ class SyncAction(BaseAction):
         if not entities:
             return False
 
+        self.logger.info('entities: {}'.format(entities))
         entity_type, entity_id = entities[0]
         if entity_type != 'AssetVersion':
             return False
@@ -286,13 +294,23 @@ class SyncAction(BaseAction):
                 )
 
 
-def register(session, **kwargs):
-
+def register(api_object, **kwargs):
     # Validate that session is an instance of ftrack_api.Session. If not,
     # assume that register is being called from an incompatible API
     # and return without doing anything.
-    if not isinstance(session, ftrack_api.Session):
+    if not isinstance(api_object, ftrack_api.Session):
         return
 
-    action = SyncAction(session)
+    action = SyncAction(api_object)
+    logger.info('Registering : {}'.format(action))
     action.register()
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    session = ftrack_api.Session(auto_connect_event_hub=True)
+    register(session)
+    logging.info(
+        'Registered actions and listening for event. Use Ctrl-C to abort.'
+    )
+    session.event_hub.wait()

@@ -45,7 +45,7 @@ def configure_location(session, event):
     location.priority = 1-sys.maxsize
 
     logger.warning(
-        u'Registering Using location {0} @ {1} with priority {2}'.format(
+        'Registering Using location {0} @ {1} with priority {2}'.format(
             LOCATION_NAME, DISK_PREFIX, location.priority
         )
     )
