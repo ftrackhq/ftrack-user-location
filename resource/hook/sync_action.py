@@ -306,15 +306,5 @@ def register(api_object, **kwargs):
         return
 
     action = SyncAction(api_object)
-    logger.info('Registering : {}'.format(action))
+    logger.info('Registering : {}'.format(api_object))
     action.register()
-
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    session = ftrack_api.Session(auto_connect_event_hub=True)
-    register(session)
-    logging.info(
-        'Registered actions and listening for event. Use Ctrl-C to abort.'
-    )
-    session.event_hub.wait()
