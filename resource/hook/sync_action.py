@@ -19,9 +19,8 @@ from ftrack_user_location import sync
 
 
 logger = logging.getLogger(
-    'ftrack_user_location'
+    'ftrack_user_location.SyncAction'
 )
-
 
 
 class SyncAction(BaseAction):
@@ -75,6 +74,7 @@ class SyncAction(BaseAction):
         }
 
         locations = self.get_locations()
+        
 
         if exclude_self:
             locations = [x for x in locations if not x['name'] == self.location['name']]
@@ -86,7 +86,8 @@ class SyncAction(BaseAction):
             # filter non accessible locations
             locations = [x for x in locations if x.accessor]
 
-        locations = sorted(locations)
+        locations = sorted(locations, key=lambda x: x['name'], reverse=True)
+
 
         for location in locations:
 
@@ -125,7 +126,6 @@ class SyncAction(BaseAction):
         return event
 
     def get_locations_ui(self, event):
-
         menu = {'items': []}
 
         menu['items'].append(
@@ -146,7 +146,7 @@ class SyncAction(BaseAction):
             self.get_locations_menu(
                 'source_location',
                 label='Source',
-                default_value=self.get_current_location(name=True),
+                default_value=self.get_current_location(name=True)
                 # exclude_inaccessibles=True
             )
         )
@@ -154,7 +154,7 @@ class SyncAction(BaseAction):
         menu['items'].append(
             self.get_locations_menu(
                 'dest_location',
-                label='Destination',
+                label='Destination'
                 #exclude_self=True
             )
         )
@@ -215,7 +215,6 @@ class SyncAction(BaseAction):
         if not entities:
             return False
 
-        self.logger.info('entities: {}'.format(entities))
         entity_type, entity_id = entities[0]
         if entity_type != 'AssetVersion':
             return False
@@ -244,7 +243,7 @@ class SyncAction(BaseAction):
             except ValueError as e:
                 return {
                     'success': False,
-                    'message': e
+                    'message': str(e)
                 }
 
             event['data']['actionIdentifier'] = '{}-to-ftrack'.format(self.location['name'])
