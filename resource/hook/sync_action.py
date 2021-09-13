@@ -126,7 +126,12 @@ class SyncAction(BaseAction):
         return event
 
     def get_locations_ui(self, event):
-        menu = {'items': []}
+        menu = {
+            'type': 'form',
+            'items': [],
+            'title': 'Sync Tool',
+            'submit_button_label': 'Sync'
+        }
 
         menu['items'].append(
             {
@@ -154,7 +159,7 @@ class SyncAction(BaseAction):
         menu['items'].append(
             self.get_locations_menu(
                 'dest_location',
-                label='Destination'.
+                label='Destination',
                 #exclude_self=True
             )
         )
