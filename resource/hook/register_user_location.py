@@ -1,5 +1,5 @@
 # :coding: utf-8
-# :copyright: Copyright (c) 2018 ftrack
+# :copyright: Copyright (c) 2014-2021 ftrack
 
 import os
 import sys
@@ -42,7 +42,7 @@ def configure_location(session, event):
         prefix=DISK_PREFIX
     )
     location.structure = _standard.StandardStructure()
-    location.priority = 1-sys.maxint
+    location.priority = 1-sys.maxsize
 
     logger.warning(
         u'Registering Using location {0} @ {1} with priority {2}'.format(

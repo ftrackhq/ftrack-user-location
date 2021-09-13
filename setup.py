@@ -1,5 +1,5 @@
 # :coding: utf-8
-# :copyright: Copyright (c) 2014-2020 ftrack
+# :copyright: Copyright (c) 2014-2021 ftrack
 
 
 import os
@@ -103,6 +103,5 @@ setup(
     cmdclass={
         'build_plugin': BuildPlugin,
     },
-    python_requires='>= 2.7.9, < 3.0'  # lucidity does not support yet python3
-
+    python_requires='>= 3.0, < 4.0'
 )
