@@ -146,7 +146,7 @@ class SyncAction(BaseAction):
             self.get_locations_menu(
                 'source_location',
                 label='Source',
-                default_value=self.get_current_location(name=True)
+                default_value=self.get_current_location(name=True),
                 # exclude_inaccessibles=True
             )
         )
@@ -154,7 +154,7 @@ class SyncAction(BaseAction):
         menu['items'].append(
             self.get_locations_menu(
                 'dest_location',
-                label='Destination'
+                label='Destination'.
                 #exclude_self=True
             )
         )
