@@ -20,6 +20,7 @@ SOURCE_PATH = os.path.join(ROOT_PATH, 'source')
 README_PATH = os.path.join(ROOT_PATH, 'README.rst')
 RESOURCE_PATH = os.path.join(ROOT_PATH, 'resource')
 HOOK_PATH = os.path.join(RESOURCE_PATH, 'hook')
+LOCATION_PATH = os.path.join(RESOURCE_PATH, 'location')
 
 # Read version from source.
 with open(os.path.join(
@@ -57,6 +58,11 @@ class BuildPlugin(Command):
         shutil.copytree(
             HOOK_PATH,
             os.path.join(STAGING_PATH, 'hook')
+        )
+
+        shutil.copytree(
+            LOCATION_PATH,
+            os.path.join(STAGING_PATH, 'location')
         )
 
         pip_main(
