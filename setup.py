@@ -101,7 +101,8 @@ setup(
     },
     install_requires=[
         'ftrack-action-handler',
-        'ftrack-python-api'
+        'ftrack-python-api',
+        'ftrack-s3-accessor'
     ],
     tests_require=[
     ],

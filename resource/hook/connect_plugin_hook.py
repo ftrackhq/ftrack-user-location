@@ -65,6 +65,9 @@ def register(api_object, **kw):
     import user_location
     user_location.register(api_object)
 
+    import cloud_location
+    cloud_location.register(api_object)
+
     # Location will be available from within the dcc applications.
     api_object.event_hub.subscribe(
         'topic=ftrack.connect.application.launch',
