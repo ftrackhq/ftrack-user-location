@@ -54,14 +54,14 @@ Amazon specific
 These environment variables should have to be provided by the owner of the Amazon S3 bucket.
 Please refer to the `Amazon IAM credentials page <https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html>`_ to see to what values these should be set to. 
 
-**AWS_ACCESS_KEY_ID**
-**AWS_SECRET_ACCESS_KEY**
+* **AWS_ACCESS_KEY_ID**
+* **AWS_SECRET_ACCESS_KEY**
 
 ftrack 
 """"""
 This environment variable is ndded to ensure all the users use the same `bucket name <https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html>`_.
  
-**FTRACK_SYNC_BUCKET**
+* **FTRACK_SYNC_BUCKET**
 
 .. note:: 
 
@@ -78,8 +78,8 @@ In case you prefer having the folder set somewhere else, please ensure to set th
 **FTRACK_USER_LOCTION_PREFIX**
 
 
-How to use it
--------------
+Checking is all setup
+---------------------
 Once all the settings are in place, you should be able to start using the location.
 
 How to test is all up and ready.
