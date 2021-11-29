@@ -7,6 +7,27 @@ import logging
 import functools
 import platform
 
+# mandatory environment variables.
+AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+
+# bucket name used for sync, this should be existing before hand.
+FTRACK_SYNC_BUCKET = os.getenv('FTRACK_SYNC_BUCKET')
+
+if not AWS_ACCESS_KEY or AWS_SECRET_KEY:
+    raise ValueError(
+        'AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)'
+        ' missing from environment variables.'
+    )
+
+if not FTRACK_SYNC_BUCKET:
+    raise ValueError(
+        'No FTRACK_SYNC_BUCKET name found in environment variables.'
+    )
+
+
+logging.info('ftrack Sync bucket set to : {}'.format(FTRACK_SYNC_BUCKET))
+
 dependencies_directory = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', 'dependencies')
 )
@@ -37,7 +58,7 @@ def configure_location(session, event):
     my_location.structure = ftrack_api.structure.standard.StandardStructure()
     
     # Set accessor.
-    my_location.accessor = S3Accessor('ftrack.sync.location')
+    my_location.accessor = S3Accessor(FTRACK_SYNC_BUCKET)
 
     # Set priority.
     my_location.priority = -1000

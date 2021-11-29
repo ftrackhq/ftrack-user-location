@@ -18,12 +18,19 @@ logger = logging.getLogger(
 # Name of the location.
 LOCATION_NAME = '{}.local'.format(getpass.getuser())
 
-# Disk mount point.
-DISK_PREFIX = os.path.join(
+# Default Disk mount point.
+DEFAULT_USER_DISK_PREFIX = os.path.join(
     os.path.expanduser('~'), 
     'Documents', 
     'local_ftrack_projects'
 )
+
+# Override environment variable for user location prefix
+USER_DISK_PREFIX = os.getenv(
+    'FTRACK_USER_LOCTION_PREFIX',
+    DEFAULT_USER_DISK_PREFIX
+)
+
 
 if not os.path.exists(DISK_PREFIX):
     logger.info('Creating folder {}'.format(DISK_PREFIX))
