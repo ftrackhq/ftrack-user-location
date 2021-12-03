@@ -74,6 +74,11 @@ If this environment variable is set, the user location won't be registered, lavi
 This is useful when runnign connect with the plugin in main studio premises, to allow remote users to pull and push data to the central storage scenario.
 
 
+* **FTRACK_USER_LOCTION_NAME**
+
+If this environment variable is set, the user location will pick the value set to it.
+Otherwise the location name will be generated based on the user logged into ftrack and the hostname
+
 Optional
 ^^^^^^^^
 By default the location will try to create a folder under:
@@ -82,7 +87,7 @@ By default the location will try to create a folder under:
 
 In case you prefer having the folder set somewhere else, please ensure to set the following environment variable to an existing folder.
 
-**FTRACK_USER_LOCTION_PREFIX**
+**FTRACK_USER_LOCTION_PATH**
 
 
 Checking is all setup

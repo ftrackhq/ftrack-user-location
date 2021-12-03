@@ -5,7 +5,7 @@ import os
 import sys
 import functools
 import logging
-import getpass
+import platform
 import ftrack_api
 import ftrack_api.accessor.disk as _disk
 import ftrack_api.structure.standard as _standard
@@ -15,8 +15,6 @@ logger = logging.getLogger(
     'ftrack_user_location'
 )
 
-# Name of the location.
-LOCATION_NAME = '{}.local'.format(getpass.getuser())
 
 # Default Disk mount point.
 DEFAULT_USER_DISK_PREFIX = os.path.join(
@@ -27,7 +25,7 @@ DEFAULT_USER_DISK_PREFIX = os.path.join(
 
 # Override environment variable for user location prefix
 USER_DISK_PREFIX = os.getenv(
-    'FTRACK_USER_LOCTION_PREFIX',
+    'FTRACK_USER_LOCTION_PATH',
     DEFAULT_USER_DISK_PREFIX
 )
 
@@ -38,10 +36,22 @@ if not os.path.exists(DISK_PREFIX):
 
 def configure_location(session, event):
     '''Listen.'''
+
+    # Name of the location.
+    DEFAULT_LOCATION_NAME = '{}.{}'.format(
+        session.api_user, 
+        platform.node()
+    )
+
+    USER_LOCATION_NAME = os.getenv(
+        'FTRACK_USER_LOCTION_NAME',
+        DEFAULT_LOCATION_NAME
+    )
+
     location = session.ensure(
         'Location', 
         {
-            'name': LOCATION_NAME
+            'name': USER_LOCATION_NAME
         }
     )
 
