@@ -29,9 +29,9 @@ USER_DISK_PREFIX = os.getenv(
     DEFAULT_USER_DISK_PREFIX
 )
 
-if not os.path.exists(DISK_PREFIX):
-    logger.info('Creating folder {}'.format(DISK_PREFIX))
-    os.makedirs(DISK_PREFIX)
+if not os.path.exists(USER_DISK_PREFIX):
+    logger.info('Creating folder {}'.format(USER_DISK_PREFIX))
+    os.makedirs(USER_DISK_PREFIX)
 
 
 def configure_location(session, event):
@@ -52,22 +52,24 @@ def configure_location(session, event):
         'Location', 
         {
             'name': USER_LOCATION_NAME,
-            'description': 'User location registered for user : {}, on host {}.'.format(
+            'description': 'User location registered for user '
+            ': {}, on host {} with path: {}'.format(
                 session.api_user, 
-                platform.node()
+                platform.node(),
+                USER_DISK_PREFIX
             )
         }
     )
 
     location.accessor = _disk.DiskAccessor(
-        prefix=DISK_PREFIX
+        prefix=USER_DISK_PREFIX
     )
     location.structure = _standard.StandardStructure()
     location.priority = 1-sys.maxsize
 
     logger.warning(
         'Registering Using location {0} @ {1} with priority {2}'.format(
-            LOCATION_NAME, DISK_PREFIX, location.priority
+            LOCATION_NAME, USER_DISK_PREFIX, location.priority
         )
     )
 
