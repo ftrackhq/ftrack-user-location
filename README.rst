@@ -63,9 +63,16 @@ This environment variable is ndded to ensure all the users use the same `bucket 
  
 * **FTRACK_SYNC_BUCKET**
 
-.. note:: 
+.. warning:: 
 
     The bucket should be created beforehand, and ensure is unique.
+
+
+* **FTRACK_USER_MAIN_LOCATION**
+
+If this environment variable is set, the user location won't be registered, laving any other location taking precendece.
+This is useful when runnign connect with the plugin in main studio premises, to allow remote users to pull and push data to the central storage scenario.
+
 
 Optional
 ^^^^^^^^

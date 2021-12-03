@@ -61,7 +61,7 @@ def configure_location(session, event):
     my_location.accessor = S3Accessor(FTRACK_SYNC_BUCKET)
 
     # Set priority.
-    my_location.priority = -1000
+    my_location.priority = 1000
 
 
 def register(api_object):
