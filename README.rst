@@ -61,11 +61,16 @@ ftrack
 """"""
 This environment variable is ndded to ensure all the users use the same `bucket name <https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html>`_.
  
-* **FTRACK_SYNC_BUCKET**
+* **FTRACK_USER_SYNC_LOCATION_BUCKET**
 
 .. warning:: 
 
-    The bucket should be created beforehand, and ensure is unique.
+    The bucket should be created before hand, and ensure is unique.
+
+
+* **FTRACK_USER_SYNC_LOCATION_PRIORITY**
+
+If this environment variable is set will define the sync location priority, by default is set to 1000.
 
 
 * **FTRACK_USER_MAIN_LOCATION**

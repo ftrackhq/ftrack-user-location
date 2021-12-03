@@ -52,8 +52,8 @@ def configure_location(session, event):
         'Location', 
         {
             'name': USER_LOCATION_NAME,
-            'description': 'User location registered for user '
-            ': {}, on host {} with path: {}'.format(
+            'description': 'User location for user '
+            ': {}, on host {}, with path: {}'.format(
                 session.api_user, 
                 platform.node(),
                 USER_DISK_PREFIX
