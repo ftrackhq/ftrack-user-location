@@ -51,7 +51,11 @@ def configure_location(session, event):
     location = session.ensure(
         'Location', 
         {
-            'name': USER_LOCATION_NAME
+            'name': USER_LOCATION_NAME,
+            'description': 'User location registered for user : {}, on host {}.'.format(
+                session.api_user, 
+                platform.node()
+            )
         }
     )
 
