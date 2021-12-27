@@ -80,8 +80,8 @@ def register(api_object, **kw):
     if not isinstance(api_object, ftrack_api.Session):
         return
 
-    if not os.path.exists(DISK_PREFIX) or not os.path.isdir(DISK_PREFIX):
-        logger.error('Disk prefix {} does not exist.'.format(DISK_PREFIX))
+    if not os.path.exists(USER_DISK_PREFIX) or not os.path.isdir(USER_DISK_PREFIX):
+        logger.error('Disk prefix {} does not exist.'.format(USER_DISK_PREFIX))
         return
 
     api_object.event_hub.subscribe(
