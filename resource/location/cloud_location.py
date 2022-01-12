@@ -24,7 +24,7 @@ AWS_SECRET_KEY = os.getenv('FTRACK_USER_SYNC_LOCATION_AWS_KEY')
 # Bucket name used for sync, this should be existing before hand.
 FTRACK_SYNC_BUCKET = os.getenv('FTRACK_USER_SYNC_LOCATION_BUCKET_NAME')
 
-if not AWS_ACCESS_KEY or AWS_SECRET_KEY:
+if not AWS_ACCESS_KEY or not AWS_SECRET_KEY:
     raise ValueError(
         'AWS credentials (FTRACK_USER_SYNC_LOCATION_AWS_ID, FTRACK_USER_SYNC_LOCATION_AWS_KEY)'
         ' missing from environment variables.'
