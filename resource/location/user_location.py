@@ -75,7 +75,7 @@ def configure_location(session, event):
 
     logger.warning(
         'Registering Using location {0} @ {1} with priority {2}'.format(
-            LOCATION_NAME, USER_DISK_PREFIX, location.priority
+            USER_LOCATION_NAME, USER_DISK_PREFIX, location.priority
         )
     )
 
