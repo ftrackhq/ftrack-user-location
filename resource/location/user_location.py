@@ -41,7 +41,7 @@ def configure_location(session, event):
         logger.info('Creating folder {}'.format(USER_DISK_PREFIX))
         os.makedirs(USER_DISK_PREFIX)
 
-    logger.info('Using folder: {}'.format(USER_DISK_PREFIX))
+    logger.info('Using folder: {}'.format(os.path.abspath(USER_DISK_PREFIX)))
 
     # Name of the location.
     DEFAULT_LOCATION_NAME = '{}.{}'.format(
@@ -62,7 +62,7 @@ def configure_location(session, event):
             ': {}, on host {}, with path: {}'.format(
                 session.api_user, 
                 platform.node(),
-                USER_DISK_PREFIX
+                os.path.abspath(USER_DISK_PREFIX)
             )
         }
     )
