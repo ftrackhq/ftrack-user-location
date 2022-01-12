@@ -40,7 +40,7 @@ logging.info('ftrack Sync bucket set to : {}'.format(FTRACK_SYNC_BUCKET))
 
 
 SYNC_LOCATOIN_PRIORITY = os.getenv(
-    'FTRACK_USER_SYNC_LOCATION_PRIORITY'
+    'FTRACK_USER_SYNC_LOCATION_PRIORITY',
     1000
 )
 

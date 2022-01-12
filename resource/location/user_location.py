@@ -16,26 +16,32 @@ logger = logging.getLogger(
 )
 
 
-# Default Disk mount point.
-DEFAULT_USER_DISK_PREFIX = os.path.join(
-    os.path.expanduser('~'), 
-    'Documents', 
-    'local_ftrack_projects'
-)
-
-# Override environment variable for user location prefix
-USER_DISK_PREFIX = os.getenv(
-    'FTRACK_USER_LOCTION_PATH',
-    DEFAULT_USER_DISK_PREFIX
-)
-
-if not os.path.exists(USER_DISK_PREFIX):
-    logger.info('Creating folder {}'.format(USER_DISK_PREFIX))
-    os.makedirs(USER_DISK_PREFIX)
 
 
 def configure_location(session, event):
     '''Listen.'''
+
+    server_folder_name = session.server_url.split('//')[-1].split('.')[0]
+
+    # Default Disk mount point.
+    DEFAULT_USER_DISK_PREFIX = os.path.join(
+        session.api_user, 
+        'Documents', 
+        'local_ftrack_projects',
+        server_folder_name
+    )
+
+    # Override environment variable for user location prefix
+    USER_DISK_PREFIX = os.getenv(
+        'FTRACK_USER_LOCTION_PATH',
+        DEFAULT_USER_DISK_PREFIX
+    )
+
+    if not os.path.exists(USER_DISK_PREFIX):
+        logger.info('Creating folder {}'.format(USER_DISK_PREFIX))
+        os.makedirs(USER_DISK_PREFIX)
+
+    logger.info('Using folder: {}'.format(USER_DISK_PREFIX))
 
     # Name of the location.
     DEFAULT_LOCATION_NAME = '{}.{}'.format(
@@ -78,10 +84,6 @@ def register(api_object, **kw):
     '''Register location with *session*.'''
 
     if not isinstance(api_object, ftrack_api.Session):
-        return
-
-    if not os.path.exists(USER_DISK_PREFIX) or not os.path.isdir(USER_DISK_PREFIX):
-        logger.error('Disk prefix {} does not exist.'.format(USER_DISK_PREFIX))
         return
 
     api_object.event_hub.subscribe(
