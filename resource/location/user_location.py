@@ -20,8 +20,11 @@ logger = logging.getLogger(
 
 def configure_location(session, event):
     '''Listen.'''
-
-    server_folder_name = session.server_url.split('//')[-1].split('.')[0]
+    
+    # provide a sanitised instance name to be used as folder
+    server_folder_name = session.server_url.split(
+        '//'
+    )[-1].split('.')[0].replace('-', '_')
 
     # Default Disk mount point.
     DEFAULT_USER_DISK_PREFIX = os.path.join(
