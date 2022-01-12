@@ -18,28 +18,28 @@ import ftrack_api.structure.standard
 from ftrack_s3_accessor.s3 import S3Accessor
 
 # Mandatory environment variables.
-AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_ACCESS_KEY = os.getenv('FTRACK_USER_SYNC_LOCATION_AWS_ACCESS_KEY')
+AWS_SECRET_KEY = os.getenv('FTRACK_USER_SYNC_LOCATION_AWS_SECRET_KEY')
 
 # Bucket name used for sync, this should be existing before hand.
-FTRACK_SYNC_BUCKET = os.getenv('FTRACK_USER_SYNC_LOCATION_BUCKET')
+FTRACK_SYNC_BUCKET = os.getenv('FTRACK_USER_SYNC_LOCATION_BUCKET_NAME')
 
 if not AWS_ACCESS_KEY or AWS_SECRET_KEY:
     raise ValueError(
-        'AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)'
+        'AWS credentials (FTRACK_USER_SYNC_LOCATION_AWS_ACCESS_KEY, FTRACK_USER_SYNC_LOCATION_AWS_SECRET_KEY)'
         ' missing from environment variables.'
     )
 
 if not FTRACK_SYNC_BUCKET:
     raise ValueError(
-        'No FTRACK_SYNC_BUCKET name found in environment variables.'
+        'No FTRACK_USER_SYNC_LOCATION_BUCKET_NAME name found in environment variables.'
     )
 
 
 logging.info('ftrack Sync bucket set to : {}'.format(FTRACK_SYNC_BUCKET))
 
 
-SYNC_LOCATOIN_PRIORITY = os.getenv(
+SYNC_LOCATION_PRIORITY = os.getenv(
     'FTRACK_USER_SYNC_LOCATION_PRIORITY',
     1000
 )
@@ -63,7 +63,7 @@ def configure_location(session, event):
     my_location.accessor = S3Accessor(FTRACK_SYNC_BUCKET)
 
     # Set priority.
-    my_location.priority = int(SYNC_LOCATOIN_PRIORITY)
+    my_location.priority = int(SYNC_LOCATION_PRIORITY)
 
 
 def register(api_object):
