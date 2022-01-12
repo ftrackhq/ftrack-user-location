@@ -15,6 +15,11 @@ sys.path.append(LOCATION_DIRECTORY)
 
 logger = logging.getLogger('ftrack_user_location')
 
+MAIN_LOCATION = os.getenv(
+    'FTRACK_USER_MAIN_LOCATION', False
+)
+
+
 
 def appendPath(path, key, environment):
     '''Append *path* to *key* in *environment*.'''
@@ -62,8 +67,9 @@ def register(api_object, **kw):
 
     logger.info('Connect plugin discovered.')
 
-    import user_location
-    user_location.register(api_object)
+    if not MAIN_LOCATION:
+        import user_location
+        user_location.register(api_object)
 
     import cloud_location
     cloud_location.register(api_object)
