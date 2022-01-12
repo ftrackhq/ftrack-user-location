@@ -30,10 +30,15 @@ if not AWS_ACCESS_KEY or not AWS_SECRET_KEY:
         ' missing from environment variables.'
     )
 
+os.environ['AWS_ACCESS_KEY_ID'] = AWS_ACCESS_KEY
+os.environ['AWS_SECRET_ACCESS_KEY'] = AWS_SECRET_KEY
+
+
 if not FTRACK_SYNC_BUCKET:
     raise ValueError(
         'No FTRACK_USER_SYNC_LOCATION_BUCKET_NAME name found in environment variables.'
     )
+
 
 
 logging.info('ftrack Sync bucket set to : {}'.format(FTRACK_SYNC_BUCKET))
