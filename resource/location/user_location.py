@@ -20,7 +20,7 @@ logger = logging.getLogger(
 
 def configure_location(session, event):
     '''Listen.'''
-    
+
     # provide a sanitised instance name to be used as folder
     server_folder_name = session.server_url.split(
         '//'
@@ -28,7 +28,7 @@ def configure_location(session, event):
 
     # Default Disk mount point.
     DEFAULT_USER_DISK_PREFIX = os.path.join(
-        session.api_user, 
+        os.path.expanduser('~'),
         'Documents', 
         'local_ftrack_projects',
         server_folder_name
