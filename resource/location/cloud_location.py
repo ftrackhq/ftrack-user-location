@@ -18,15 +18,15 @@ import ftrack_api.structure.standard
 from ftrack_s3_accessor.s3 import S3Accessor
 
 # Mandatory environment variables.
-AWS_ACCESS_KEY = os.getenv('FTRACK_USER_SYNC_LOCATION_AWS_ACCESS_KEY')
-AWS_SECRET_KEY = os.getenv('FTRACK_USER_SYNC_LOCATION_AWS_SECRET_KEY')
+AWS_ACCESS_KEY = os.getenv('FTRACK_USER_SYNC_LOCATION_AWS_ID')
+AWS_SECRET_KEY = os.getenv('FTRACK_USER_SYNC_LOCATION_AWS_KEY')
 
 # Bucket name used for sync, this should be existing before hand.
 FTRACK_SYNC_BUCKET = os.getenv('FTRACK_USER_SYNC_LOCATION_BUCKET_NAME')
 
 if not AWS_ACCESS_KEY or AWS_SECRET_KEY:
     raise ValueError(
-        'AWS credentials (FTRACK_USER_SYNC_LOCATION_AWS_ACCESS_KEY, FTRACK_USER_SYNC_LOCATION_AWS_SECRET_KEY)'
+        'AWS credentials (FTRACK_USER_SYNC_LOCATION_AWS_ID, FTRACK_USER_SYNC_LOCATION_AWS_KEY)'
         ' missing from environment variables.'
     )
 

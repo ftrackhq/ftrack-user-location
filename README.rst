@@ -54,8 +54,8 @@ Amazon specific
 These environment variables should have to be provided by the owner of the Amazon S3 bucket.
 Please refer to the `Amazon IAM credentials page <https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html>`_ to see to what values these should be set to. 
 
-* **FTRACK_USER_SYNC_LOCATION_AWS_ACCESS_KEY**
-* **FTRACK_USER_SYNC_LOCATION_AWS_SECRET_KEY**
+* **FTRACK_USER_SYNC_LOCATION_AWS_ID**
+* **FTRACK_USER_SYNC_LOCATION_AWS_KEY**
 
 ftrack 
 """"""
