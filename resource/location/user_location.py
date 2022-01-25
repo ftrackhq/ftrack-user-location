@@ -57,7 +57,8 @@ def configure_location(session, event):
         DEFAULT_LOCATION_NAME
     )
 
-    try:
+    location = session.query('Location where name is "{}"'.format(USER_LOCATION_NAME)).first()
+    if not location:
         location = session.ensure(
             'Location', 
             {
@@ -70,8 +71,6 @@ def configure_location(session, event):
                 )
             }
         )
-    except Exception as err:
-        logger.debug(err)
 
     location.accessor = _disk.DiskAccessor(
         prefix=USER_DISK_PREFIX
