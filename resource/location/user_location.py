@@ -57,18 +57,21 @@ def configure_location(session, event):
         DEFAULT_LOCATION_NAME
     )
 
-    location = session.ensure(
-        'Location', 
-        {
-            'name': USER_LOCATION_NAME,
-            'description': 'User location for user '
-            ': {}, on host {}, with path: {}'.format(
-                session.api_user, 
-                platform.node(),
-                os.path.abspath(USER_DISK_PREFIX)
-            )
-        }
-    )
+    try:
+        location = session.ensure(
+            'Location', 
+            {
+                'name': USER_LOCATION_NAME,
+                'description': 'User location for user '
+                ': {}, on host {}, with path: {}'.format(
+                    session.api_user, 
+                    platform.node(),
+                    os.path.abspath(USER_DISK_PREFIX)
+                )
+            }
+        )
+    except Exception as err:
+        logger.debug(err)
 
     location.accessor = _disk.DiskAccessor(
         prefix=USER_DISK_PREFIX
