@@ -52,13 +52,9 @@ SYNC_LOCATION_PRIORITY = os.getenv(
 
 def get_url(self, resource_identifier=None):
     '''Return url for *resource_identifier*.'''
-    print('args: {} {}'.format(self, resource_identifier))
     s3_object = self.bucket.Object(resource_identifier)
-    print('s3 object {}'.format(s3_object))
     location = boto3.client('s3').get_bucket_location(Bucket=self.bucket_name)['LocationConstraint']
-    print('location {}'.format(location))
     url = "https://s3-{}.amazonaws.com/{}/{}".format(location, self.bucket_name, s3_object.key)
-    print('URL: {}'.format(url))
     return url
 
 
