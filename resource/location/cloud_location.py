@@ -6,6 +6,7 @@ import sys
 import logging
 import functools
 import platform
+from types import MethodType
 
 dependencies_directory = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', 'dependencies')
@@ -40,7 +41,6 @@ if not FTRACK_SYNC_BUCKET:
     )
 
 
-
 logging.info('ftrack Sync bucket set to : {}'.format(FTRACK_SYNC_BUCKET))
 
 
@@ -48,6 +48,19 @@ SYNC_LOCATION_PRIORITY = os.getenv(
     'FTRACK_USER_SYNC_LOCATION_PRIORITY',
     1000
 )
+
+
+def get_url(self, resource_identifier=None):
+    '''Return url for *resource_identifier*.'''
+    print('args: {} {}'.format(self, resource_identifier))
+    s3_object = self.bucket.Object(resource_identifier)
+    location = boto3.client('s3').get_bucket_location(Bucket=self._bucket)['LocationConstraint']
+    url = "https://s3-{}.amazonaws.com/{}/{}".format(location, self._bucket, s3_object.key)
+    print('URL: {}'.format(url))
+    return url
+
+
+S3Accessor.get_url = MethodType(get_url, S3Accessor)
 
 
 def configure_location(session, event):
@@ -63,9 +76,9 @@ def configure_location(session, event):
 
     # Set new structure in location.
     my_location.structure = ftrack_api.structure.standard.StandardStructure()
-    
-    # Set accessor.
-    my_location.accessor = S3Accessor(FTRACK_SYNC_BUCKET)
+
+    accessor = S3Accessor(FTRACK_SYNC_BUCKET)
+    my_location.accessor = accessor
 
     # Set priority.
     my_location.priority = int(SYNC_LOCATION_PRIORITY)
@@ -78,7 +91,7 @@ def register(api_object):
     # that register is being called from an old or incompatible API and return
     # without doing anything.
     if not isinstance(api_object, ftrack_api.Session):
-        logger.debug(
+        logging.debug(
             'Not subscribing plugin as passed argument {0} is not an '
             'ftrack_api.Session instance.'.format(api_object)
         )
