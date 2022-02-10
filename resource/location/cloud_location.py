@@ -54,13 +54,13 @@ def get_url(self, resource_identifier=None):
     '''Return url for *resource_identifier*.'''
     print('args: {} {}'.format(self, resource_identifier))
     s3_object = self.bucket.Object(resource_identifier)
-    location = boto3.client('s3').get_bucket_location(Bucket=self._bucket)['LocationConstraint']
-    url = "https://s3-{}.amazonaws.com/{}/{}".format(location, self._bucket, s3_object.key)
+    print('s3 object {}'.format(s3_object))
+    location = boto3.client('s3').get_bucket_location(Bucket=self.bucket_name)['LocationConstraint']
+    print('location {}'.format(location))
+    url = "https://s3-{}.amazonaws.com/{}/{}".format(location, self.bucket_name, s3_object.key)
     print('URL: {}'.format(url))
     return url
 
-
-S3Accessor.get_url = MethodType(get_url, S3Accessor)
 
 
 def configure_location(session, event):
@@ -78,6 +78,7 @@ def configure_location(session, event):
     my_location.structure = ftrack_api.structure.standard.StandardStructure()
 
     accessor = S3Accessor(FTRACK_SYNC_BUCKET)
+    accessor.get_url = MethodType(get_url, accessor)
     my_location.accessor = accessor
 
     # Set priority.
