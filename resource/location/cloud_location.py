@@ -53,10 +53,12 @@ SYNC_LOCATION_PRIORITY = os.getenv(
 def get_url(self, resource_identifier=None):
     '''Return url for *resource_identifier*.'''
     s3_object = self.bucket.Object(resource_identifier)
-    location = boto3.client('s3').get_bucket_location(Bucket=self.bucket_name)['LocationConstraint']
-    url = "https://s3-{}.amazonaws.com/{}/{}".format(location, self.bucket_name, s3_object.key)
+    try:
+        location = boto3.client('s3').get_bucket_location(Bucket=self.bucket_name)['LocationConstraint']
+        url = "https://s3-{}.amazonaws.com/{}/{}".format(location, self.bucket_name, s3_object.key)
+    except Exception:
+        url = 'Missing, GetBucketLocation option.... please enable on the bucket to render component path.'
     return url
-
 
 
 def configure_location(session, event):

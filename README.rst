@@ -41,6 +41,20 @@ How to set it up
 Once installed a number of settings are needed to be provided in order to be able to sync data.
 
 
+Bucket Options
+--------------
+
+In order for the location to render the bucket paths, please ensure you have the GetBucketLocation set for all the users.
+
+.. code:: json
+
+    {
+      "Action": [
+        "s3:GetBucketLocation"
+      ]
+    }
+
+
 Environment variables
 .....................
 For the location to be fully operational, some environment variables are needed to be setup.
