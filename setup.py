@@ -7,7 +7,10 @@ import re
 import shutil
 
 from pkg_resources import parse_version
-import pip
+try:
+    from pip.__main__ import _main as pip_main
+except ImportError:
+    from pip import main as pip_main
 
 from setuptools import setup, find_packages, Command
 import subprocess

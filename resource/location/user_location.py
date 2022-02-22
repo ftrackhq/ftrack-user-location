@@ -46,10 +46,14 @@ def configure_location(session, event):
 
     logger.info('Using folder: {}'.format(os.path.abspath(USER_DISK_PREFIX)))
 
+    hostname = platform.node()
+    if platform.system() == 'Darwin' and hostname.endswith('.local'):
+        hostname = hostname[:hostname.find('.local')]
+
     # Name of the location.
     DEFAULT_LOCATION_NAME = '{}.{}'.format(
         session.api_user, 
-        platform.node()
+        hostname
     )
 
     USER_LOCATION_NAME = os.getenv(
@@ -66,7 +70,7 @@ def configure_location(session, event):
                 'description': 'User location for user '
                 ': {}, on host {}, with path: {}'.format(
                     session.api_user, 
-                    platform.node(),
+                    hostname,
                     os.path.abspath(USER_DISK_PREFIX)
                 )
             }
