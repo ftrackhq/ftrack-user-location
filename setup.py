@@ -6,12 +6,6 @@ import os
 import re
 import shutil
 
-from pkg_resources import parse_version
-try:
-    from pip.__main__ import _main as pip_main
-except ImportError:
-    from pip import main as pip_main
-
 from setuptools import setup, find_packages, Command
 import subprocess
 
