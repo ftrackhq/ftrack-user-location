@@ -1,17 +1,13 @@
 # :coding: utf-8
 # :copyright: Copyright (c) 2014-2021 ftrack
 
-
+import sys
 import os
 import re
 import shutil
 
-from pkg_resources import parse_version
-import pip
-
-from pip.__main__ import _main as pip_main
-
 from setuptools import setup, find_packages, Command
+import subprocess
 
 
 ROOT_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -65,11 +61,9 @@ class BuildPlugin(Command):
             os.path.join(STAGING_PATH, 'location')
         )
 
-        pip_main(
+        subprocess.check_call(
             [
-                'install',
-                '.',
-                '--target',
+                sys.executable, '-m', 'pip', 'install','.','--target',
                 os.path.join(STAGING_PATH, 'dependencies')
             ]
         )
@@ -101,7 +95,8 @@ setup(
     },
     install_requires=[
         'ftrack-action-handler',
-        'ftrack-python-api'
+        'ftrack-python-api',
+        'ftrack-s3-accessor'
     ],
     tests_require=[
     ],

@@ -162,7 +162,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
     job['status'] = 'done'
     session.commit()
 
-    logger.info('Finished processing {} components.' % len(components))
+    logger.info('Finished processing {} components.'.format(len(components)))
 
 
 def on_sync_to_remote(session, source, destination, user_id, selection):
@@ -178,7 +178,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
         destination.
     '''
     store_mapping = {
-        'sync': 'ftrack.server',
+        'sync': 'ftrack.sync',
         'input': source,
         'output': destination
     }
