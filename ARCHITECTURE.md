@@ -24,6 +24,7 @@ The ftrack User Location plugin enables artists to publish assets to their local
    - ftrack Connect action UI for sync operations
    - Provides source/destination location selection
    - Triggers sync events via ftrack event hub
+   - Lazy-loads user ID to avoid querying during plugin discovery
 
 4. **Connect Plugin Hook** (`resource/hook/connect_plugin_hook.py`)
    - Registers location plugins with ftrack session
@@ -85,6 +86,23 @@ Previous versions used AWS S3 (`ftrack.sync` location). The current implementati
 
 ### Location Discovery
 Locations are discovered per-session via the `configure-location` event, ensuring each ftrack Connect session registers its own user location based on the logged-in user and hostname.
+
+### Plugin Registration Lifecycle
+The plugin follows a careful initialization sequence to avoid querying the ftrack API before the session is fully initialized:
+
+1. **Plugin Discovery** (`register()` function called)
+   - Session is still initializing
+   - `session.types` not yet populated
+   - Action class instantiated but defers queries
+
+2. **Session Ready** (after `_discover_plugins()` completes)
+   - Schema downloaded, `session.types` available
+   - Discovery events can now safely query session
+
+3. **Lazy Initialization**
+   - `current_user_id` property queries on first access
+   - Prevents `AttributeError: 'Session' object has no attribute 'types'`
+   - Cached after first query to avoid repeated lookups
 
 ## Build System
 

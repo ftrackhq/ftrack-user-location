@@ -5,29 +5,14 @@ All notable changes to ftrack-user-location will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.1] - 2026-06-09
-
-### Fixed
-- **Duplicate actions in UI**: Fixed issue where multiple ftrack Connect instances (from different users) caused duplicate "ftrack sync tool" actions to appear
-  - Each action handler now filters discovery events by user ID
-  - Only responds to discovery events from its own user
-  - Performance: Added user ID caching (1 query per session vs per discovery)
-  - See [ACTION_DISCOVERY_FIX.md](ACTION_DISCOVERY_FIX.md) for detailed explanation
-
-### Changed
-- Improved `discover()` method with user-based filtering
-- Enhanced documentation with testing scenarios for multi-user environments
-
 ## [0.4.0] - 2026-06-09
 
 ### Added
 - **Real-time progress tracking**: Job UI now shows percentage completion during sync
-- **Comprehensive documentation**:
-  - [AGENTS.md](AGENTS.md) - Agent architecture and deployment modes (300+ lines)
-  - [ARCHITECTURE.md](ARCHITECTURE.md) - System design and technical decisions (150+ lines)
-  - [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) - Implementation guide for optimizations (1484 lines)
 - **Component tracking**: Detailed tracking of successful/skipped/failed components
 - **Pattern-based filtering**: `should_skip_component()` helper for robust review component filtering
+- **Multi-user support**: Each user sees only their own sync action (no duplicates)
+- **Enhanced documentation**: ARCHITECTURE.md with system design and technical decisions
 
 ### Changed
 - **Performance: 10-20x faster sync operations**
@@ -45,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplified to ftrack.server storage only (zero AWS configuration)
 
 ### Fixed
+- **Session initialization bug**: Fixed `AttributeError: 'Session' object has no attribute 'types'` during plugin discovery
+- **Lazy initialization**: User ID now queries only after session is fully initialized
+- **Duplicate actions in UI**: Action handlers filter discovery events by user ID
 - Session management with proper rollback on component transfer failures
 - Event validation prevents crashes on malformed event data
 - Partial failure handling (continues syncing remaining components after individual failures)

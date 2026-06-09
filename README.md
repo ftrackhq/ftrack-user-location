@@ -1,6 +1,6 @@
 # ftrack user location
 
-**Version 0.4.1** - High-performance user location plugin for ftrack
+**Version 0.4.0** - High-performance user location plugin for ftrack
 
 Welcome to the ftrack-user-location plugin. This plugin enables local-first workflows with optimized sync operations.
 
@@ -135,23 +135,22 @@ How to test is all up and ready.
 
 ## What's New
 
-### Version 0.4.1 (Latest)
+### Version 0.4.0 (Latest)
+- **Fixed**: Session initialization bug during plugin discovery
 - **Fixed**: Duplicate actions when multiple users run ftrack Connect simultaneously
-- Each user now sees only their own sync action (no duplicates)
-- Performance: Added user ID caching (1 query per session instead of per discovery)
-
-### Version 0.4.0
+- **Improvement**: Lazy-loaded user ID to avoid querying before session is ready
 - **Performance**: 10-20x faster sync operations
 - **Optimization**: 90% reduction in database queries (N+1 fixes)
 - **Optimization**: 90% reduction in database commits (batched every 10 components)
 - **Feature**: Real-time progress tracking in ftrack Job UI
 - **Feature**: Robust error handling with partial success tracking
 - **Feature**: Detailed component tracking (successful/skipped/failed)
+- **Feature**: Multi-user support (each user sees only their own sync action)
 - **Improvement**: Event validation to prevent crashes
 - **Improvement**: Enhanced component filtering (pattern-based)
 - **Migration**: Removed AWS/boto dependencies (ftrack.server only)
 - **Migration**: UV-based build system with pyproject.toml
-- **Docs**: Added AGENTS.md, ARCHITECTURE.md, MIGRATION_GUIDE.md, ACTION_DISCOVERY_FIX.md
+- **Docs**: Added ARCHITECTURE.md and CHANGELOG.md
 
 ### Version 0.3.2
 - Previous stable release
@@ -160,6 +159,5 @@ How to test is all up and ready.
 
 - **[AGENTS.md](AGENTS.md)** - Agent architecture, deployment modes, and workflows
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design, data flow, and technical decisions
-- **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** - Implementation guide for performance optimizations
-- **[ACTION_DISCOVERY_FIX.md](ACTION_DISCOVERY_FIX.md)** - How duplicate action prevention works
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
