@@ -43,10 +43,17 @@ class SyncAction(BaseAction):
             'ftrack.review'      # Review proxy location
         ]
 
-        # Cache current user ID to avoid querying on every discovery event
-        self._current_user_id = self.session.query(
-            'User where username is "{}"'.format(self.session.api_user)
-        ).first()['id']
+        # Cache current user ID (lazy-loaded on first access)
+        self._current_user_id = None
+
+    @property
+    def current_user_id(self):
+        """Lazy-load current user ID on first access to avoid querying during plugin discovery."""
+        if self._current_user_id is None:
+            self._current_user_id = self.session.query(
+                'User where username is "{}"'.format(self.session.api_user)
+            ).first()['id']
+        return self._current_user_id
 
     @property
     def variant(self):
@@ -277,7 +284,7 @@ class SyncAction(BaseAction):
         # are running ftrack Connect simultaneously
         event_user_id = event.get('source', {}).get('user', {}).get('id')
 
-        if event_user_id and event_user_id != self._current_user_id:
+        if event_user_id and event_user_id != self.current_user_id:
             # This discovery event is from a different user's Connect instance
             # Don't respond to prevent duplicate actions in UI
             return False
