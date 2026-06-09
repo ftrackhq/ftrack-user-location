@@ -33,12 +33,14 @@ class SyncAction(BaseAction):
         super(SyncAction, self).__init__(session)
         self._location_data = {}
         self._sync_data = {}
+        # Locations to exclude from sync dropdown
+        # Include ftrack.server as it's the primary sync target
+        # Exclude only internal/system locations
         self._ignored_locations = [
-            'ftrack.origin',
-            'ftrack.server',
-            'ftrack.unmanaged',
-            'ftrack.connect',
-            'ftrack.review'
+            'ftrack.origin',     # Original file location (not a sync target)
+            'ftrack.unmanaged',  # Unmanaged files
+            'ftrack.connect',    # Connect internal location
+            'ftrack.review'      # Review proxy location
         ]
 
         # Cache current user ID to avoid querying on every discovery event
@@ -69,7 +71,17 @@ class SyncAction(BaseAction):
     def get_locations_menu(
             self, field_id, label=None,
             default_value=None, exclude_self=False, exclude_inaccessibles=False):
+        '''Build location dropdown menu for sync action.
 
+        Shows:
+        - User locations (e.g., username.hostname)
+        - ftrack.server (primary sync target)
+
+        Excludes:
+        - Internal ftrack locations (origin, unmanaged, connect, review)
+        - Self location if exclude_self=True
+        - Inaccessible locations if exclude_inaccessibles=True
+        '''
         location_menu = {
             'label': label,
             'type': 'enumerator',
@@ -79,16 +91,16 @@ class SyncAction(BaseAction):
         }
 
         locations = self.get_locations()
-        
+
 
         if exclude_self:
             locations = [x for x in locations if not x['name'] == self.location['name']]
 
-        # filter out ftrack locations from sync
+        # Filter out internal ftrack locations (but keep ftrack.server for sync)
         locations = [x for x in locations if x['name'] not in self._ignored_locations]
 
         if exclude_inaccessibles:
-            # filter non accessible locations
+            # Filter non-accessible locations
             locations = [x for x in locations if x.accessor]
 
         locations = sorted(locations, key=lambda x: x['name'], reverse=True)
