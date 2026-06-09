@@ -41,6 +41,11 @@ class SyncAction(BaseAction):
             'ftrack.review'
         ]
 
+        # Cache current user ID to avoid querying on every discovery event
+        self._current_user_id = self.session.query(
+            'User where username is "{}"'.format(self.session.api_user)
+        ).first()['id']
+
     @property
     def variant(self):
         return 'Sync @ {}'.format(self.location['name'])
@@ -242,11 +247,27 @@ class SyncAction(BaseAction):
             raise
 
     def discover(self, session, entities, event):
+        '''Discover action only for current user to prevent duplicates.
+
+        When multiple users run ftrack Connect, each registers their own
+        action handler. We filter by matching the event source user with
+        the current session user to ensure only one action appears per user.
+        '''
         if not entities:
             return False
 
         entity_type, entity_id = entities[0]
         if entity_type != 'AssetVersion':
+            return False
+
+        # Only respond to discovery from the same user that registered this action
+        # This prevents multiple action instances appearing when multiple users
+        # are running ftrack Connect simultaneously
+        event_user_id = event.get('source', {}).get('user', {}).get('id')
+
+        if event_user_id and event_user_id != self._current_user_id:
+            # This discovery event is from a different user's Connect instance
+            # Don't respond to prevent duplicate actions in UI
             return False
 
         return True
