@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Critical: User ID parameter type error**: Fixed `ValueError: Incompatible entity_key` when creating sync jobs
+  - Corrected `sync_here()` to pass `user['id']` string instead of entire user dict
+  - Prevents crash when initiating sync from UI
+- **Critical: Cross-user location access**: Added early validation for location accessibility
+  - Validates both source and destination have accessors before sync starts
+  - Prevents "No accessor defined for source location" errors
+  - Provides clear error when attempting to sync from another user's unregistered location
+  - Fails fast before creating Job entity, avoiding orphaned failed jobs
+
 ### Changed
 - **Dependency update**: Replaced deprecated `appdirs` with `platformdirs` for user directory resolution
   - `platformdirs` is the actively maintained successor to `appdirs`
