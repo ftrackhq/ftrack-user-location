@@ -291,7 +291,8 @@ User can choose which location to sync from.
 
 ## Version Information
 
-**Fixed in**: v0.4.0+
+**Fixed in**: v0.4.1
 **Issue**: Multiple action instances when multiple users running Connect
 **Impact**: Improves UX by preventing duplicate actions in menu
 **Breaking Changes**: None
+**Related**: See [CHANGELOG.md](CHANGELOG.md) for complete version history
