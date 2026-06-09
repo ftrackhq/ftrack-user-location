@@ -178,7 +178,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
         destination.
     '''
     store_mapping = {
-        'sync': 'ftrack.sync',
+        'sync': 'ftrack.server',
         'input': source,
         'output': destination
     }
