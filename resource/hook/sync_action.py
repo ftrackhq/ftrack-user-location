@@ -106,19 +106,44 @@ class SyncAction(BaseAction):
         return location in self.get_locations(name=True)
 
     def build_sync_event(self, event):
-        source_location = event['data']['values']['source_location']
-        dest_location = event['data']['values']['dest_location']
+        '''Build sync event with comprehensive validation.
 
+        Args:
+            event (dict): Action event with form values
+
+        Returns:
+            dict: Modified event with sync parameters
+
+        Raises:
+            ValueError: If validation fails
+        '''
+        values = event['data'].get('values', {})
+
+        source_location = values.get('source_location')
+        dest_location = values.get('dest_location')
+
+        # Validate required fields
+        if not source_location:
+            raise ValueError('Source location is required')
+        if not dest_location:
+            raise ValueError('Destination location is required')
+
+        # Prevent self-sync
+        if source_location == dest_location:
+            raise ValueError('Source and destination must be different')
+
+        # Validate locations exist
         if not self.location_exists(source_location):
             raise ValueError(
-                'Source location {} does not exist'.format(source_location)
+                'Source location "{}" does not exist'.format(source_location)
             )
 
         if not self.location_exists(dest_location):
             raise ValueError(
-                'Destination location {} does not exist'.format(dest_location)
+                'Destination location "{}" does not exist'.format(dest_location)
             )
 
+        # Build event
         event['data']['actionIdentifier'] = 'syncto-{}'.format(dest_location)
         event['source']['location'] = self.location['name']
         event['target'] = {'location': dest_location}
@@ -237,27 +262,61 @@ class SyncAction(BaseAction):
         return accepts
 
     def launch(self, session, entities, event):
-        self.logger.info("Sync action launched from location {}".format(self.location['name']))
+        '''Launch sync action with comprehensive error handling.
+
+        Args:
+            session: ftrack API session
+            entities: Selected entities
+            event: Action event
+
+        Returns:
+            dict: Success/failure message or form UI
+        '''
+        self.logger.info(
+            "Sync action launched from location {}".format(self.location['name'])
+        )
 
         if 'values' not in event['data']:
+            # Show form
             event = self.get_locations_ui(event)
             return event
         else:
             try:
                 event = self.build_sync_event(event)
             except ValueError as e:
+                self.logger.warning('Validation error: {}'.format(e))
                 return {
                     'success': False,
                     'message': str(e)
                 }
+            except Exception as e:
+                self.logger.error('Unexpected error building sync event: {}'.format(e))
+                import traceback
+                self.logger.error(traceback.format_exc())
+                return {
+                    'success': False,
+                    'message': 'An unexpected error occurred. Please check logs.'
+                }
 
-            event['data']['actionIdentifier'] = '{}-to-ftrack'.format(self.location['name'])
-            self.session.event_hub.publish(event)
+            # Publish event
+            try:
+                event['data']['actionIdentifier'] = '{}-to-ftrack'.format(
+                    self.location['name']
+                )
+                self.session.event_hub.publish(event)
 
-            return {
-                'success': True,
-                'message': 'Sync launched'
-            }
+                return {
+                    'success': True,
+                    'message': 'Sync launched successfully'
+                }
+            except Exception as e:
+                self.logger.error('Failed to publish sync event: {}'.format(e))
+                import traceback
+                self.logger.error(traceback.format_exc())
+                return {
+                    'success': False,
+                    'message': 'Failed to launch sync. Please try again.'
+                }
 
     def register(self):
         # ensure session has been finishing to load and discovered locations.

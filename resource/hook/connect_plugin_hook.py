@@ -35,24 +35,48 @@ def appendPath(path, key, environment):
     return environment
 
 def modify_application_launch(event):
-    '''Modify the application environment to include  our location plugin.'''
-    environment = event['data'].get('options', {}).get('env', {})
+    '''Modify the application environment to include our location plugin.
 
-    appendPath(
-        LOCATION_DIRECTORY,
-        'FTRACK_EVENT_PLUGIN_PATH',
-        environment
-    )
-    
-    appendPath(
-        LOCATION_DIRECTORY,
-        'PYTHONPATH',
-        environment
-    )
+    Args:
+        event (dict): ftrack event with application launch data
+    '''
+    # Validate event structure
+    if not event or 'data' not in event:
+        logger.warning('Invalid event structure, missing data')
+        return
 
-    logger.info(
-        'Connect plugin modified launch hook to register location plugin.'
-    )
+    options = event['data'].get('options')
+    if not isinstance(options, dict):
+        logger.warning('Event options is not a dictionary')
+        return
+
+    environment = options.get('env', {})
+    if not isinstance(environment, dict):
+        logger.warning('Event environment is not a dictionary, creating new')
+        environment = {}
+        options['env'] = environment
+
+    try:
+        appendPath(
+            LOCATION_DIRECTORY,
+            'FTRACK_EVENT_PLUGIN_PATH',
+            environment
+        )
+
+        appendPath(
+            LOCATION_DIRECTORY,
+            'PYTHONPATH',
+            environment
+        )
+
+        logger.info(
+            'Connect plugin modified launch hook to register location plugin.'
+        )
+    except Exception as error:
+        logger.error('Failed to modify environment: {}'.format(error))
+        import traceback
+        logger.error(traceback.format_exc())
+        # Don't raise - let application launch continue
 
 
 def register(api_object, **kw):
@@ -71,15 +95,9 @@ def register(api_object, **kw):
         import user_location
         user_location.register(api_object)
 
-    # Location will be available from within the dcc applications.
+    # Location will be available from DCC applications and actions (combined subscription)
     api_object.event_hub.subscribe(
-        'topic=ftrack.connect.application.launch',
-        modify_application_launch
-    )
-
-    # Location will be available from actions
-    api_object.event_hub.subscribe(
-        'topic=ftrack.action.launch',
+        'topic=ftrack.connect.application.launch or topic=ftrack.action.launch',
         modify_application_launch
     )
 

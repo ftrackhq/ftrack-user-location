@@ -8,18 +8,48 @@ import json
 
 logger = logging.getLogger(__name__)
 
+# Configuration
+BATCH_COMMIT_SIZE = 10  # Commit every 10 components for optimal performance
+IGNORED_COMPONENT_PATTERNS = ['ftrackreview', 'ftrack-review', 'review-media']
+
+
+def should_skip_component(component_name):
+    '''Check if component should be skipped during sync.
+
+    Args:
+        component_name (str): Component name to check
+
+    Returns:
+        bool: True if component should be skipped
+    '''
+    name_lower = component_name.lower()
+    return any(pattern in name_lower for pattern in IGNORED_COMPONENT_PATTERNS)
+
 
 def on_sync_to_destination(session, source_id, destination_id, components, user_id):
-    ''' Callback for when files are copied from the cloud location into the
-    destination one.
+    '''Callback for when files are copied between locations.
 
-        *source_id* : The id if the source location.
-        *destination_id* : The id if the source location.
-        *components* : a list of ids of all the component to be copied over.
-        *userId* : the id of the user who requested the sync.
-
+    Args:
+        session: ftrack API session
+        source_id: Source location ID
+        destination_id: Destination location ID
+        components: List of component dicts with 'id' key
+        user_id: User ID requesting sync
     '''
-    components = [session.get('Component', cid['id']) for cid in components]
+    # Batch query with projection (optimized)
+    component_ids = [cid['id'] for cid in components]
+
+    if not component_ids:
+        logger.info('No components to sync')
+        return
+
+    components = session.query(
+        'select id, name, version_id from Component where id in ({})'.format(
+            ','.join('"{}"'.format(cid) for cid in component_ids)
+        )
+    ).all()
+
+    logger.info('Queried {} components for sync'.format(len(components)))
 
     # get location objects
     source_location = session.get('Location', source_id)
@@ -65,13 +95,22 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
         session.commit()
         return
 
-    # now try to do the sync for each component
-    for component in components:
+    # Track progress and results
+    total_components = len(components)
+    processed = 0
+    successful = []
+    skipped = []
+    failed = []
+
+    # Process components with batched commits
+    for i, component in enumerate(components):
         component_id = component['id']
         component_name = component['name']
 
-        # exclude ftrack-review component names ?
-        if 'ftrackreview' in component_name:
+        # Skip review components
+        if should_skip_component(component_name):
+            logger.debug('Skipping review component: {}'.format(component_name))
+            skipped.append(component_name)
             continue
 
         destination_available = destination_location.get_component_availability(
@@ -87,20 +126,8 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
                 component_name, source_name
             )
             logger.warning(status)
-            job['data'] = json.dumps({
-                'description': status
-            })
-            job['status'] = 'failed'
-            session.commit()
+            skipped.append(component_name)
             continue
-        else:
-            status = 'component "{}" is available in {}'.format(
-                component_name, source_name
-            )
-            job['data'] = json.dumps({
-                'description': status
-            })
-            session.commit()
 
         logger.debug(
             '"{}" availability in {} is {}'.format(
@@ -114,68 +141,108 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
         )
 
         if destination_available == 100.0:
-            status = '"{}" already sync from {} to {}'.format(
+            status = '"{}" already exists in {}'.format(
                 component_name,
-                source_name,
                 destination_name
             )
-            job['data'] = json.dumps({
-                'description': status
-            })
             logger.debug(status)
-            session.commit()
+            skipped.append(component_name)
             continue
 
-        message = 'Copying Component "{}" from {} to {}'.format(
-                component_name,
-                source_name,
-                destination_name
-        )
-
-        logger.debug(message)
-        job['data'] = json.dumps({
-            'description': message
-        })
-        session.commit()
-
+        # Attempt transfer
         try:
-            destination_location.add_component(
-                component,
-                source_location
-            )
+            logger.debug('Copying "{}" from {} to {}'.format(
+                component_name, source_name, destination_name
+            ))
+
+            destination_location.add_component(component, source_location)
+            successful.append(component_name)
+            processed += 1
+
+            # Update job progress (no commit yet)
+            progress_pct = int((processed / total_components) * 100)
+            job['data'] = json.dumps({
+                'description': 'Syncing {} ({}/{})'.format(
+                    component_name, processed, total_components
+                ),
+                'progress': progress_pct,
+                'successful': len(successful),
+                'skipped': len(skipped),
+                'failed': len(failed)
+            })
+
+            # Batch commit for performance
+            if (i + 1) % BATCH_COMMIT_SIZE == 0:
+                session.commit()
+                logger.info('Committed batch {}/{} components'.format(i + 1, total_components))
 
         except ftrack_api.exception.ComponentInLocationError as error:
-            logger.warning(error)
+            logger.warning('Component already in location: {}'.format(error))
+            skipped.append(component_name)
+            continue
+
+        except ftrack_api.exception.LocationError as error:
+            logger.error('Location error for {}: {}'.format(component_name, error))
+            failed.append({'name': component_name, 'error': str(error)})
+            session.rollback()
+            continue
+
+        except IOError as error:
+            logger.error('IO error for {}: {}'.format(component_name, error))
+            failed.append({'name': component_name, 'error': str(error)})
+            session.rollback()
             continue
 
         except Exception as error:
-            logger.error('Component "{}" with ID {} failed: {}'.format(
-                component_name,
-                component_id,
-                error
-            ))
+            logger.error('Unexpected error for {}: {}'.format(component_name, error))
             import traceback
             logger.error(traceback.format_exc())
-            job['status'] = 'failed'
-            session.commit()
+            failed.append({'name': component_name, 'error': str(error)})
+            session.rollback()
+            # Continue processing other components
 
-    job['status'] = 'done'
-    session.commit()
+    # Final commit and status
+    if failed:
+        job['status'] = 'failed'
+        job['data'] = json.dumps({
+            'description': 'Completed {}/{} components. {} failed.'.format(
+                len(successful), total_components, len(failed)
+            ),
+            'successful': successful,
+            'skipped': skipped,
+            'failed': failed
+        })
+    else:
+        job['status'] = 'done'
+        job['data'] = json.dumps({
+            'description': 'Successfully synced {} components. {} skipped.'.format(
+                len(successful), len(skipped)
+            ),
+            'successful': successful,
+            'skipped': skipped
+        })
 
-    logger.info('Finished processing {} components.'.format(len(components)))
+    session.commit()  # Final commit
+
+    logger.info(
+        'Finished processing {} components: {} successful, {} skipped, {} failed'.format(
+            total_components, len(successful), len(skipped), len(failed)
+        )
+    )
 
 
 def on_sync_to_remote(session, source, destination, user_id, selection):
-    ''' Callback for when files are copied from the local location to the cloud
-        one.
+    '''Sync components from local location to remote.
 
-        *buttonId* : The name of the callback defined in the ftrack interface.
-        *userId* : the id of the user who requested the sync.
-        *selection* : a list of the ids of the selected entity in ftrack.
+    Args:
+        session: ftrack API session
+        source: Source location name
+        destination: Destination location name
+        user_id: User ID requesting sync
+        selection: List of selected entities
 
-        once the copy to the cloud location is completed, an event
-        `available_on_amazon` will then be emitted to sync the data to the
-        destination.
+    Raises:
+        ValueError: If required locations not found
     '''
     store_mapping = {
         'sync': 'ftrack.server',
@@ -191,16 +258,26 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
             source, destination)
     )
 
+    # Query locations by name directly (optimized - prevents fetching all locations)
     results = {}
-    for location in session.query('select name from Location').all():
-        location_name = location['name']
-        for store_type, store_name in list(store_mapping.items()):
-            if store_name == location_name:
-                logger.debug(
-                    "Syncing to remote, found location {} in {} of type = {}".format(
-                        location_name, store_name, store_type)
-                    )
-                results[store_type] = location
+    for store_type, store_name in store_mapping.items():
+        location = session.query(
+            'Location where name is "{}"'.format(store_name)
+        ).first()
+
+        if location:
+            results[store_type] = location
+            logger.debug('Found location {} for type {}'.format(store_name, store_type))
+        else:
+            logger.warning('Location "{}" not found'.format(store_name))
+
+    # Validate required locations exist
+    if 'sync' not in results:
+        raise ValueError('Sync location "ftrack.server" not found')
+    if 'input' not in results:
+        raise ValueError('Source location "{}" not found'.format(source))
+    if 'output' not in results:
+        raise ValueError('Destination location "{}" not found'.format(destination))
 
     source_name = results['input']['name']
     sync_name = results['sync']['name']
@@ -218,98 +295,135 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
     })
     session.commit()
 
+    # Batch query with projection (optimized - prevents N+1 query problem)
+    version_ids = [s['entityId'] for s in selection]
+
+    if not version_ids:
+        logger.warning('No versions selected for sync')
+        job['status'] = 'done'
+        session.commit()
+        return
+
+    # Single query with projection - much faster than N individual queries
+    versions = session.query(
+        'select components.id, components.name from AssetVersion '
+        'where id in ({})'.format(','.join('"{}"'.format(vid) for vid in version_ids))
+    ).all()
+
     components = []
-    for s in selection:
-        version = session.get('AssetVersion', s['entityId'])
+    for version in versions:
+        for component in version.get('components', []):
+            components.append({
+                'id': component['id'],
+                'name': component['name']
+            })
 
-        # get all the asset components
-        for component in version['components']:
-            component_name = component['name']
-            component_id = component['id']
-            components.append(
-                {
-                    'id': component_id,
-                    'name': component_name
-                }
-            )
+    logger.info('Found {} components across {} versions'.format(
+        len(components), len(versions)
+    ))
 
-            status = 'Syncing {} from {} to {}'.format(
-                component_name,
-                source_name,
-                sync_name
-            )
+    # Track progress
+    total = len(components)
+    processed = 0
+    successful = []
+    skipped = []
+    failed = []
 
-            job['data'] = json.dumps(
-                {
-                    'description': status
-                }
+    for i, comp_dict in enumerate(components):
+        component_id = comp_dict['id']
+        component_name = comp_dict['name']
+
+        # Get full component entity
+        component = session.get('Component', component_id)
+
+        # Skip review components
+        if should_skip_component(component_name):
+            logger.debug('Skipping review component: {}'.format(component_name))
+            skipped.append(component_name)
+            continue
+
+        # Check source availability
+        source_component = results['input'].get_component_availability(component)
+        if source_component != 100.0:
+            status = 'Component {} not available in {}: {}%'.format(
+                component_name, source_name, source_component
             )
-            session.commit()
             logger.debug(status)
+            skipped.append(component_name)
+            continue
 
-            source_component = results['input'].get_component_availability(
-                component
+        # Check if already synced
+        synced_component = results['sync'].get_component_availability(component)
+        if synced_component == 100.0:
+            status = 'Component {} already synced to {}'.format(
+                component_name, sync_name
             )
-            if source_component != 100.0:
-                status = 'Component {} not available in {} : {}'.format(
-                    component_name,
-                    source_name,
-                    source_component
-                )
-                logger.debug(status)
-                job['data'] = json.dumps(
-                    {
-                        'description': status
-                    }
-                )
+            logger.debug(status)
+            skipped.append(component_name)
+            continue
+
+        # Attempt sync
+        try:
+            logger.debug('Copying {} from {} to {}'.format(
+                component['name'], source_name, sync_name
+            ))
+
+            results['sync'].add_component(component, results['input'])
+            successful.append(component_name)
+            processed += 1
+
+            # Update job (no commit yet)
+            progress_pct = int((processed / total) * 100)
+            job['data'] = json.dumps({
+                'description': 'Syncing {} ({}/{})'.format(
+                    component_name, processed, total
+                ),
+                'progress': progress_pct
+            })
+
+            # Batch commit for performance
+            if (i + 1) % BATCH_COMMIT_SIZE == 0:
                 session.commit()
-                continue
+                logger.info('Committed batch {}/{}'.format(i + 1, total))
 
-            # check whether the component is already available
-            # in the sync location
-            synced_component = results['sync'].get_component_availability(
-                component
-            )
+        except ftrack_api.exception.ComponentInLocationError as error:
+            logger.warning('Component already in location: {}'.format(error))
+            skipped.append(component_name)
+            continue
 
-            if synced_component == 100.0:
-                status = 'Component {} already synced to {}'.format(
-                    component_name,
-                    sync_name
-                )
-                logger.debug(status)
-                job['data'] = json.dumps(
-                    {
-                        'description': status
-                    }
-                )
-                continue
+        except Exception as error:
+            logger.error('Failed to sync {}: {}'.format(component_name, error))
+            import traceback
+            logger.error(traceback.format_exc())
+            failed.append({'name': component_name, 'error': str(error)})
+            session.rollback()
 
-            logger.debug('copying {} from {} to {}'.format(
-                    component['name'],
-                    source_name,
-                    sync_name
-                )
-            )
+    # Final status
+    if failed:
+        job['status'] = 'failed'
+        job['data'] = json.dumps({
+            'description': 'Completed {}/{} components. {} failed.'.format(
+                len(successful), total, len(failed)
+            ),
+            'successful': successful,
+            'skipped': skipped,
+            'failed': failed
+        })
+    else:
+        job['status'] = 'done'
+        job['data'] = json.dumps({
+            'description': 'Successfully synced {} components. {} skipped.'.format(
+                len(successful), len(skipped)
+            ),
+            'successful': successful,
+            'skipped': skipped
+        })
 
-            try:
-                results['sync'].add_component(
-                    component, results['input']
-                )
+    session.commit()  # Final commit
 
-            except ftrack_api.exception.ComponentInLocationError as error:
-                logger.error(error)
-                continue
-
-            except Exception:
-                import traceback
-                logger.error(traceback.format_exc())
-                job['status'] = 'failed'
-                session.commit()
-
-    job['status'] = 'done'
-    session.commit()
-
-    logger.info('Finished processing {} components.'.format(len(components)))
+    logger.info('Finished processing {} components: {} successful, {} skipped, {} failed'.format(
+        total, len(successful), len(skipped), len(failed)
+    ))
 
     event = ftrack_api.event.base.Event(
         topic='ftrack.sync',
