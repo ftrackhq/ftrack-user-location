@@ -1,6 +1,6 @@
 # ftrack user location
 
-**Version 0.4.0** - High-performance user location plugin for ftrack
+**Version 0.4.1** - High-performance user location plugin for ftrack
 
 Welcome to the ftrack-user-location plugin. This plugin enables local-first workflows with optimized sync operations.
 
