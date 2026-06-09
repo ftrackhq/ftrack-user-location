@@ -157,33 +157,38 @@ class SyncAction(BaseAction):
         if source_location == dest_location:
             raise ValueError("Source and destination must be different")
 
-        # Validate locations exist
-        if not self.location_exists(source_location):
+        # Validate locations exist and are accessible
+        source_loc = self.session.query(
+            'Location where name is "{}"'.format(source_location)
+        ).first()
+
+        if not source_loc:
             raise ValueError(
                 'Source location "{}" does not exist'.format(source_location)
             )
 
-        if not self.location_exists(dest_location):
+        dest_loc = self.session.query(
+            'Location where name is "{}"'.format(dest_location)
+        ).first()
+
+        if not dest_loc:
             raise ValueError(
                 'Destination location "{}" does not exist'.format(dest_location)
             )
 
         # Validate locations are accessible (have accessors)
-        source_loc = self.session.get("Location", source_location)
-        dest_loc = self.session.get("Location", dest_location)
-
         if not source_loc.accessor:
             raise ValueError(
                 'Source location "{}" is not accessible from this machine. '
                 "You can only sync from locations that are registered on your local machine.".format(
-                    source_loc["name"]
+                    source_location
                 )
             )
 
         if not dest_loc.accessor:
             raise ValueError(
                 'Destination location "{}" is not accessible from this machine.'.format(
-                    dest_loc["name"]
+                    dest_location
                 )
             )
 
