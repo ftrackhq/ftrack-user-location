@@ -9,9 +9,8 @@ install and setup, before start using it.
 machine's file system rather than to other central storage scenario,
 opening up the ability to work from remote or deatached locations.
 
-The plugin also provide a secondary sync ('ftrack.sync') location based
-on Amazon S3, as well as a sync action, to allow transfer between any
-available locations, providing a way to exchange or delivery any
+The plugin provides a sync action to allow transfer between any
+available locations (including ftrack.server), providing a way to exchange or deliver any
 published material with other users or the studio storage.
 
 ## How does it work
@@ -32,26 +31,55 @@ it'll be reflected in the component location shown in the server.
 
 ## How to build and install
 
-Please refer to [our help
-pages](https://help.ftrack.com/en/articles/3504354-ftrack-connect-plugins-discovery-installation-and-update).
+### Prerequisites
+
+This project uses [UV](https://docs.astral.sh/uv/) for dependency management and builds. Install UV:
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or with pip
+pip install uv
+```
+
+### Building the plugin
+
+To build the ftrack Connect plugin package:
+
+```bash
+# Install dependencies
+uv sync
+
+# Build the plugin zip
+uv run python setup.py build_plugin
+```
+
+This creates a zip file in the `build/` directory: `ftrack-user-location-<version>.zip`
+
+### Installation
+
+For installation instructions, please refer to [our help pages](https://help.ftrack.com/en/articles/3504354-ftrack-connect-plugins-discovery-installation-and-update).
+
+### Development
+
+To install in development mode:
+
+```bash
+# Create virtual environment and install dependencies
+uv sync
+
+# Install in editable mode
+uv pip install -e .
+```
 
 ## How to set it up
 
 Once installed a number of settings are needed to be provided in order
 to be able to sync data.
-
-## Bucket Options
-
-In order for the location to render the bucket paths, please ensure you
-have the GetBucketLocation set for all the users.
-
-``` json
-{
-  "Action": [
-    "s3:GetBucketLocation"
-  ]
-}
-```
 
 ### Environment variables
 
@@ -60,38 +88,11 @@ needed to be setup.
 
 #### Mandatory
 
-##### Amazon specific
-
-These environment variables should have to be provided by the owner of
-the Amazon S3 bucket. Please refer to the [Amazon IAM credentials
-page](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html)
-to see to what values these should be set to.
-
--   **FTRACK_USER_SYNC_LOCATION_AWS_ID**
--   **FTRACK_USER_SYNC_LOCATION_AWS_KEY**
-
-##### ftrack
-
-This environment variable is ndded to ensure all the users use the same
-[bucket
-name](https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html).
-
--   **FTRACK_USER_SYNC_LOCATION_BUCKET_NAME**
-
-Warning
-
-The bucket should be created before hand, and ensure is unique.
-
--   **FTRACK_USER_SYNC_LOCATION_PRIORITY**
-
-If this environment variable is set will define the sync location
-priority, by default is set to 1000.
-
 -   **FTRACK_USER_MAIN_LOCATION**
 
 If this environment variable is set, the user location won't be
-registered, laving any other location taking precendece. This is useful
-when runnign connect with the plugin in main studio premises, to allow
+registered, leaving any other location taking precedence. This is useful
+when running connect with the plugin in main studio premises, to allow
 remote users to pull and push data to the central storage scenario.
 
 -   **FTRACK_USER_LOCTION_NAME**
@@ -121,6 +122,6 @@ How to test is all up and ready.
 1.  Use connect to publish a file . This should end up in \<user\>.local
 2.  Execute actions on an AssetVersion and select the **ftrack sync
     tool** and run a transfer between your **\<user\>.local** to
-    **ftrack.sync**
+    **ftrack.server**
 3.  As above, but try to transfer file between two **\<user\>.local**
     locations.

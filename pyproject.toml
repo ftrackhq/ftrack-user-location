@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ftrack-user-location"
+version = "0.3.2"
+description = "ftrack user location plugin for local and remote file synchronization"
+readme = "README.md"
+requires-python = ">= 3.7"
+license = "Apache-2.0"
+authors = [
+    { name = "ftrack", email = "support@ftrack.com" }
+]
+keywords = ["ftrack", "integration", "connect", "location", "structure"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "ftrack-action-handler",
+    "ftrack-python-api",
+]
+
+[project.urls]
+Homepage = "https://github.com/ftrackhq/ftrack-user-location"
+Documentation = "https://help.ftrack.com"
+Repository = "https://github.com/ftrackhq/ftrack-user-location"
+Issues = "https://github.com/ftrackhq/ftrack-user-location/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["source/ftrack_user_location"]
+exclude = ["resource"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/source",
+    "/resource",
+    "/README.md",
+    "/LICENSE.txt",
+]
+
+[tool.setuptools]
+package-dir = {"" = "source"}
+
+[tool.setuptools.packages.find]
+where = ["source"]
+
+[dependency-groups]
+dev = [
+    "tomli>=2.0.0; python_version < '3.11'",
+    "setuptools>=68.0.0",
+]
