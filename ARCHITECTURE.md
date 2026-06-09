@@ -86,6 +86,20 @@ Previous versions used AWS S3 (`ftrack.sync` location). The current implementati
 ### Location Discovery
 Locations are discovered per-session via the `configure-location` event, ensuring each ftrack Connect session registers its own user location based on the logged-in user and hostname.
 
+### Error Handling & Job Tracking
+The sync engine creates ftrack Job entities to track sync operations and provide user feedback:
+
+**Job Entity Schema:**
+- Jobs use `data` field containing JSON with `description` key
+- Job status updated throughout sync lifecycle: `running` → `done` or `failed`
+- Each component operation updates job description for progress tracking
+
+**Error Recovery:**
+- `ComponentInLocationError`: Logged and job updated when component already exists
+- General exceptions: Job marked as `failed`, full traceback logged
+- Session commits ensure job updates are persisted even on errors
+- Missing commits could cause KeyError when session tries to merge uncommitted operations
+
 ## Build System
 
 ### UV-based Build
@@ -109,8 +123,8 @@ ftrack-user-location-{version}.zip
 
 **Mandatory:**
 - `FTRACK_USER_MAIN_LOCATION`: When set, disables user location (for main studio)
-- `FTRACK_USER_LOCTION_NAME`: Override default location name
-- `FTRACK_USER_LOCTION_PATH`: Override default storage path
+- `FTRACK_USER_LOCATION_NAME`: Override default location name
+- `FTRACK_USER_LOCATION_PATH`: Override default storage path
 
 **Optional:**
 - None (AWS variables removed in current version)

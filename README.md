@@ -95,7 +95,7 @@ registered, leaving any other location taking precedence. This is useful
 when running connect with the plugin in main studio premises, to allow
 remote users to pull and push data to the central storage scenario.
 
--   **FTRACK_USER_LOCTION_NAME**
+-   **FTRACK_USER_LOCATION_NAME**
 
 If this environment variable is set, the user location will pick the
 value set to it. Otherwise the location name will be generated based on
@@ -110,7 +110,7 @@ By default the location will try to create a folder under:
 In case you prefer having the folder set somewhere else, please ensure
 to set the following environment variable to an existing folder.
 
-**FTRACK_USER_LOCTION_PATH**
+**FTRACK_USER_LOCATION_PATH**
 
 ## Checking is all setup
 
