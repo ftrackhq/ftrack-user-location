@@ -175,7 +175,7 @@ class SyncAction(BaseAction):
                 event['data']['locations']['sync'],
                 event['data']['locations']['destination'],
                 event['data']['components'],
-                event['source']['user']
+                event['source']['user']['id']
             )
         except Exception:
             import traceback
@@ -187,7 +187,6 @@ class SyncAction(BaseAction):
                     ' please check the logs'
                     )
             }
-            raise
 
     def sync_there(self, event):
         try:
@@ -214,7 +213,6 @@ class SyncAction(BaseAction):
                     ' please check the logs'
                     )
             }
-            raise
 
     def discover(self, session, entities, event):
         if not entities:

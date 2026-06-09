@@ -42,10 +42,12 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
 
     # start the job
     job = session.create('Job', {
-        'description': "Sync from {} to {} ".format(
-            source_name,
-            destination_name
-        ),
+        'data': json.dumps({
+            'description': "Sync from {} to {} ".format(
+                source_name,
+                destination_name
+            )
+        }),
         'user': session.get('User', user_id),
         'status': 'running'
     })
@@ -146,6 +148,12 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
 
         except ftrack_api.exception.ComponentInLocationError as error:
             logger.warning(error)
+            job['data'] = json.dumps({
+                'description': 'Component "{}" already exists in {}'.format(
+                    component_name, destination_name
+                )
+            })
+            session.commit()
             continue
 
         except Exception as error:
@@ -282,6 +290,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
                         'description': status
                     }
                 )
+                session.commit()
                 continue
 
             logger.debug('copying {} from {} to {}'.format(
@@ -298,6 +307,12 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
 
             except ftrack_api.exception.ComponentInLocationError as error:
                 logger.error(error)
+                job['data'] = json.dumps({
+                    'description': 'Component {} already exists in {}'.format(
+                        component['name'], sync_name
+                    )
+                })
+                session.commit()
                 continue
 
             except Exception:

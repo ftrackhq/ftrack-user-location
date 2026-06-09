@@ -36,7 +36,7 @@ def configure_location(session, event):
 
     # Override environment variable for user location prefix
     USER_DISK_PREFIX = os.getenv(
-        'FTRACK_USER_LOCTION_PATH',
+        'FTRACK_USER_LOCATION_PATH',
         DEFAULT_USER_DISK_PREFIX
     )
 
@@ -57,7 +57,7 @@ def configure_location(session, event):
     )
 
     USER_LOCATION_NAME = os.getenv(
-        'FTRACK_USER_LOCTION_NAME',
+        'FTRACK_USER_LOCATION_NAME',
         DEFAULT_LOCATION_NAME
     )
 
