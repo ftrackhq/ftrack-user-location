@@ -1,27 +1,29 @@
 # :coding: utf-8
 # :copyright: Copyright (c) 2018 ftrack
 
+from typing import Dict, Any, Union
 import os
 import sys
 import logging
 
 import ftrack_api
+import ftrack_api.session
 
-LOCATION_DIRECTORY = os.path.abspath(
+LOCATION_DIRECTORY: str = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', 'location')
 )
 
 sys.path.append(LOCATION_DIRECTORY)
 
-logger = logging.getLogger('ftrack_user_location')
+logger: logging.Logger = logging.getLogger('ftrack_user_location')
 
-MAIN_LOCATION = os.getenv(
+MAIN_LOCATION: Union[str, bool] = os.getenv(
     'FTRACK_USER_MAIN_LOCATION', False
 )
 
 
 
-def appendPath(path, key, environment):
+def appendPath(path: str, key: str, environment: Dict[str, str]) -> Dict[str, str]:
     '''Append *path* to *key* in *environment*.'''
     try:
         environment[key] = (
@@ -34,11 +36,11 @@ def appendPath(path, key, environment):
 
     return environment
 
-def modify_application_launch(event):
+def modify_application_launch(event: Dict[str, Any]) -> None:
     '''Modify the application environment to include our location plugin.
 
     Args:
-        event (dict): ftrack event with application launch data
+        event: ftrack event with application launch data
     '''
     # Validate event structure
     if not event or 'data' not in event:
@@ -79,7 +81,7 @@ def modify_application_launch(event):
         # Don't raise - let application launch continue
 
 
-def register(api_object, **kw):
+def register(api_object: Any, **kw: Any) -> None:
     '''Register plugin to api_object.'''
 
     # Validate that api_object is an instance of ftrack_api.Session. If not,

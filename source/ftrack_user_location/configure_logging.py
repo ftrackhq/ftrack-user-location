@@ -1,5 +1,6 @@
 # :coding: utf-8
 # :copyright: Copyright (c) 2015 ftrack
+from typing import Optional, List, Tuple, Union
 import os
 import logging
 import logging.config
@@ -7,15 +8,15 @@ import appdirs
 import errno
 
 
-def get_log_directory():
+def get_log_directory() -> str:
     '''Get log directory.
 
     Will create the directory (recursively) if it does not exist.
 
     Raise if the directory can not be created.
     '''
-    user_data_dir = appdirs.user_data_dir('ftrack-connect', 'ftrack')
-    log_directory = os.path.join(user_data_dir, 'log')
+    user_data_dir: str = appdirs.user_data_dir('ftrack-connect', 'ftrack')
+    log_directory: str = os.path.join(user_data_dir, 'log')
 
     if not os.path.exists(log_directory):
         try:
@@ -29,7 +30,12 @@ def get_log_directory():
     return log_directory
 
 
-def configure_logging(logger_name, level=None, format=None, extra_modules=None):
+def configure_logging(
+    logger_name: str,
+    level: Optional[int] = None,
+    format: Optional[str] = None,
+    extra_modules: Optional[Union[List[str], Tuple[str, ...]]] = None
+) -> None:
     '''Configure `loggerName` loggers with console and file handler.
 
     Optionally specify log *level* (default WARNING)
@@ -44,8 +50,8 @@ def configure_logging(logger_name, level=None, format=None, extra_modules=None):
     format = format or '%(asctime)s %(levelname)8s %(threadName)s (%(lineno)04d) %(name)s - %(message)s'
     level = level or logging.INFO
 
-    log_directory = get_log_directory()
-    logfile = os.path.join(
+    log_directory: str = get_log_directory()
+    logfile: str = os.path.join(
         log_directory, '{0}.log'.format(logger_name)
     )
 

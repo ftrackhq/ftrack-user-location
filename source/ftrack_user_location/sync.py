@@ -1,7 +1,10 @@
 # :coding: utf-8
 # :copyright: Copyright (c) 2018 ftrack
 
+from typing import List, Dict, Any, Optional
 import ftrack_api
+import ftrack_api.session
+import ftrack_api.entity.base
 import logging
 import json
 
@@ -9,24 +12,30 @@ import json
 logger = logging.getLogger(__name__)
 
 # Configuration
-BATCH_COMMIT_SIZE = 10  # Commit every 10 components for optimal performance
-IGNORED_COMPONENT_PATTERNS = ['ftrackreview', 'ftrack-review', 'review-media']
+BATCH_COMMIT_SIZE: int = 10  # Commit every 10 components for optimal performance
+IGNORED_COMPONENT_PATTERNS: List[str] = ['ftrackreview', 'ftrack-review', 'review-media']
 
 
-def should_skip_component(component_name):
+def should_skip_component(component_name: str) -> bool:
     '''Check if component should be skipped during sync.
 
     Args:
-        component_name (str): Component name to check
+        component_name: Component name to check
 
     Returns:
-        bool: True if component should be skipped
+        True if component should be skipped
     '''
-    name_lower = component_name.lower()
+    name_lower: str = component_name.lower()
     return any(pattern in name_lower for pattern in IGNORED_COMPONENT_PATTERNS)
 
 
-def on_sync_to_destination(session, source_id, destination_id, components, user_id):
+def on_sync_to_destination(
+    session: 'ftrack_api.session.Session',
+    source_id: str,
+    destination_id: str,
+    components: List[Dict[str, str]],
+    user_id: str
+) -> None:
     '''Callback for when files are copied between locations.
 
     Args:
@@ -37,31 +46,31 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
         user_id: User ID requesting sync
     '''
     # Batch query with projection (optimized)
-    component_ids = [cid['id'] for cid in components]
+    component_ids: List[str] = [cid['id'] for cid in components]
 
     if not component_ids:
         logger.info('No components to sync')
         return
 
-    components = session.query(
+    component_entities: List['ftrack_api.entity.base.Entity'] = session.query(
         'select id, name, version_id from Component where id in ({})'.format(
             ','.join('"{}"'.format(cid) for cid in component_ids)
         )
     ).all()
 
-    logger.info('Queried {} components for sync'.format(len(components)))
+    logger.info('Queried {} components for sync'.format(len(component_entities)))
 
     # get location objects
-    source_location = session.get('Location', source_id)
-    destination_location = session.get('Location', destination_id)
+    source_location: 'ftrack_api.entity.base.Entity' = session.get('Location', source_id)
+    destination_location: 'ftrack_api.entity.base.Entity' = session.get('Location', destination_id)
 
     # get location accessors
     source_accessor = source_location.accessor
     destination_accessor = destination_location.accessor
 
     # get the location names
-    source_name = source_location['name']
-    destination_name = destination_location['name']
+    source_name: str = source_location['name']
+    destination_name: str = destination_location['name']
 
     logger.info(
         "Syncing from {} to {}".format(
@@ -71,7 +80,7 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
     )
 
     # start the job
-    job = session.create('Job', {
+    job: 'ftrack_api.entity.base.Entity' = session.create('Job', {
         'description': "Sync from {} to {} ".format(
             source_name,
             destination_name
@@ -96,16 +105,16 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
         return
 
     # Track progress and results
-    total_components = len(components)
-    processed = 0
-    successful = []
-    skipped = []
-    failed = []
+    total_components: int = len(component_entities)
+    processed: int = 0
+    successful: List[str] = []
+    skipped: List[str] = []
+    failed: List[Dict[str, str]] = []
 
     # Process components with batched commits
-    for i, component in enumerate(components):
-        component_id = component['id']
-        component_name = component['name']
+    for i, component in enumerate(component_entities):
+        component_id: str = component['id']
+        component_name: str = component['name']
 
         # Skip review components
         if should_skip_component(component_name):
@@ -231,7 +240,13 @@ def on_sync_to_destination(session, source_id, destination_id, components, user_
     )
 
 
-def on_sync_to_remote(session, source, destination, user_id, selection):
+def on_sync_to_remote(
+    session: 'ftrack_api.session.Session',
+    source: str,
+    destination: str,
+    user_id: str,
+    selection: List[Dict[str, Any]]
+) -> None:
     '''Sync components from local location to remote.
 
     Args:
@@ -244,13 +259,13 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
     Raises:
         ValueError: If required locations not found
     '''
-    store_mapping = {
+    store_mapping: Dict[str, str] = {
         'sync': 'ftrack.server',
         'input': source,
         'output': destination
     }
 
-    user = session.get('User', user_id)
+    user: 'ftrack_api.entity.base.Entity' = session.get('User', user_id)
 
     logger.info(
         "User {} is syncing {} items from {} to {}".format(
@@ -259,7 +274,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
     )
 
     # Query locations by name directly (optimized - prevents fetching all locations)
-    results = {}
+    results: Dict[str, 'ftrack_api.entity.base.Entity'] = {}
     for store_type, store_name in store_mapping.items():
         location = session.query(
             'Location where name is "{}"'.format(store_name)
@@ -279,14 +294,14 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
     if 'output' not in results:
         raise ValueError('Destination location "{}" not found'.format(destination))
 
-    source_name = results['input']['name']
-    sync_name = results['sync']['name']
+    source_name: str = results['input']['name']
+    sync_name: str = results['sync']['name']
 
     # create a job to inform the user that something is going on
-    message = " Sync from {} to {}".format(source_name, sync_name)
+    message: str = " Sync from {} to {}".format(source_name, sync_name)
     logger.info(message)
 
-    job = session.create('Job', {
+    job: 'ftrack_api.entity.base.Entity' = session.create('Job', {
         'data': json.dumps({
             'description': message
         }),
@@ -296,7 +311,7 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
     session.commit()
 
     # Batch query with projection (optimized - prevents N+1 query problem)
-    version_ids = [s['entityId'] for s in selection]
+    version_ids: List[str] = [s['entityId'] for s in selection]
 
     if not version_ids:
         logger.warning('No versions selected for sync')
@@ -305,12 +320,12 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
         return
 
     # Single query with projection - much faster than N individual queries
-    versions = session.query(
+    versions: List['ftrack_api.entity.base.Entity'] = session.query(
         'select components.id, components.name from AssetVersion '
         'where id in ({})'.format(','.join('"{}"'.format(vid) for vid in version_ids))
     ).all()
 
-    components = []
+    components: List[Dict[str, str]] = []
     for version in versions:
         for component in version.get('components', []):
             components.append({
@@ -323,18 +338,18 @@ def on_sync_to_remote(session, source, destination, user_id, selection):
     ))
 
     # Track progress
-    total = len(components)
-    processed = 0
-    successful = []
-    skipped = []
-    failed = []
+    total: int = len(components)
+    processed: int = 0
+    successful: List[str] = []
+    skipped: List[str] = []
+    failed: List[Dict[str, str]] = []
 
     for i, comp_dict in enumerate(components):
-        component_id = comp_dict['id']
-        component_name = comp_dict['name']
+        component_id: str = comp_dict['id']
+        component_name: str = comp_dict['name']
 
         # Get full component entity
-        component = session.get('Component', component_id)
+        component: 'ftrack_api.entity.base.Entity' = session.get('Component', component_id)
 
         # Skip review components
         if should_skip_component(component_name):
