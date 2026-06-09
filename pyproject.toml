@@ -28,6 +28,7 @@ classifiers = [
 dependencies = [
     "ftrack-action-handler",
     "ftrack-python-api",
+    "platformdirs",
 ]
 
 [project.urls]
