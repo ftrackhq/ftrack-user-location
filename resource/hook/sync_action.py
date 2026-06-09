@@ -177,19 +177,30 @@ class SyncAction(BaseAction):
             )
 
         # Validate locations are accessible (have accessors)
-        if not source_loc.accessor:
+        # Note: ftrack.server is always accessible via API (no local accessor needed)
+        # For user locations, at least one of source/dest must be accessible locally
+        source_is_server = source_location == "ftrack.server"
+        dest_is_server = dest_location == "ftrack.server"
+        source_accessible = source_is_server or source_loc.accessor
+        dest_accessible = dest_is_server or dest_loc.accessor
+
+        # At least one location must be accessible locally (or be ftrack.server)
+        if not source_accessible and not dest_accessible:
             raise ValueError(
-                'Source location "{}" is not accessible from this machine. '
-                "You can only sync from locations that are registered on your local machine.".format(
-                    source_location
-                )
+                "Neither source nor destination location is accessible from this machine. "
+                "At least one location must be registered locally or be ftrack.server."
             )
 
-        if not dest_loc.accessor:
+        # If both are remote user locations (no accessors, not server), block it
+        if (
+            not source_is_server
+            and not dest_is_server
+            and not source_loc.accessor
+            and not dest_loc.accessor
+        ):
             raise ValueError(
-                'Destination location "{}" is not accessible from this machine.'.format(
-                    dest_location
-                )
+                "Cannot sync between two remote user locations. "
+                "Please sync to ftrack.server first, then sync from ftrack.server to the destination."
             )
 
         # Build event
