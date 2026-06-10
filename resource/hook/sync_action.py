@@ -37,10 +37,10 @@ class SyncAction(AdvancedBaseAction):
     identifier = 'ftrack.fsync'
     description = 'Sync components between user locations and ftrack.server'
 
-    # Entity filtering - show action only for AssetVersions
-    # Note: FileComponents are still supported when passed in selection data,
-    # but action only appears once per AssetVersion to avoid duplicates
-    allowed_types = ['AssetVersion']
+    # Entity filtering - show action for AssetVersions and FileComponents
+    # Session user filter in discover() prevents duplicates when multiple
+    # users have Connect running
+    allowed_types = ['AssetVersion', 'FileComponent']
 
     # Allow empty context for testing
     allow_empty_context = False
