@@ -177,6 +177,10 @@ class SyncAction(BaseAction):
                 event['data']['components'],
                 event['source']['user']['id']
             )
+            return {
+                'success': True,
+                'message': 'Sync completed'
+            }
         except Exception:
             import traceback
             self.logger.error(traceback.format_exc())
@@ -202,6 +206,11 @@ class SyncAction(BaseAction):
                 event['data'].get('selection', [])
             )
             self._location_data.pop(_id) if _id in self._location_data else None
+
+            return {
+                'success': True,
+                'message': 'Sync completed'
+            }
 
         except Exception:
             import traceback
