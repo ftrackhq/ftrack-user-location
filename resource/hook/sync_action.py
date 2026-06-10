@@ -399,8 +399,11 @@ class SyncAction(AdvancedBaseAction):
             )
         )
 
-        # Return the menu form structure
-        return menu
+        # Update event with form structure and return
+        # event parameter is an Event object, convert to dict first
+        result = dict(event)
+        result.update(menu)
+        return result
 
     def handle_ping(self, event):
         """Respond to ping requests to indicate this location is online.
@@ -652,8 +655,7 @@ class SyncAction(AdvancedBaseAction):
         self.logger.info("Sync action launched from location {}".format(self.location['name']))
 
         if 'values' not in event['data']:
-            event = self.get_locations_ui(event)
-            return event
+            return self.get_locations_ui(event)
         else:
             try:
                 event = self.build_sync_event(event)
