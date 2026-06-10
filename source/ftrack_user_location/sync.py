@@ -523,18 +523,34 @@ def on_sync_to_remote(session, source, destination, requesting_user_id, selectio
     components_synced = []
     components_failed = []
     for s in selection:
-        version = session.get('AssetVersion', s['entityId'])
+        entity_type = s.get('entityType') or s.get('entity_type') or 'AssetVersion'
 
-        # get all the asset components
-        for component in version['components']:
-            component_name = component['name']
-            component_id = component['id']
-            components.append(
-                {
-                    'id': component_id,
-                    'name': component_name
-                }
-            )
+        # Handle both AssetVersion and FileComponent selections
+        if entity_type.lower() == 'assetversion':
+            version = session.get('AssetVersion', s['entityId'])
+            if not version:
+                continue
+
+            # get all the asset components
+            for component in version['components']:
+                component_name = component['name']
+                component_id = component['id']
+                components.append(
+                    {
+                        'id': component_id,
+                        'name': component_name
+                    }
+                )
+        elif entity_type.lower() == 'filecomponent':
+            # Direct component selection
+            component = session.get('FileComponent', s['entityId'])
+            if component:
+                components.append(
+                    {
+                        'id': component['id'],
+                        'name': component['name']
+                    }
+                )
 
             _log_sync_context(
                 logger.debug,

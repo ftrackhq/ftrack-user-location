@@ -37,8 +37,8 @@ class SyncAction(AdvancedBaseAction):
     identifier = 'ftrack.fsync'
     description = 'Sync components between user locations and ftrack.server'
 
-    # Entity filtering - only show action for AssetVersions
-    allowed_types = ['AssetVersion']
+    # Entity filtering - show action for AssetVersions and FileComponents
+    allowed_types = ['AssetVersion', 'FileComponent']
 
     # Allow empty context for testing
     allow_empty_context = False
@@ -81,8 +81,22 @@ class SyncAction(AdvancedBaseAction):
 
     def get_locations_menu(
             self, field_id, label=None,
-            default_value=None, exclude_self=False, exclude_inaccessibles=False):
+            default_value=None, exclude_self=False, exclude_inaccessibles=False,
+            filter_by_availability=None):
+        """Build location dropdown menu.
 
+        Args:
+            field_id: Form field ID
+            label: Field label
+            default_value: Default selected value
+            exclude_self: Exclude current location
+            exclude_inaccessibles: Exclude locations without accessor
+            filter_by_availability: Dict of {location_name: (available, total)}
+                                   Only show locations with available > 0
+
+        Returns:
+            dict: Form field definition
+        """
         location_menu = {
             'label': label,
             'type': 'enumerator',
@@ -92,7 +106,7 @@ class SyncAction(AdvancedBaseAction):
         }
 
         locations = self.get_locations()
-        
+
 
         if exclude_self:
             locations = [x for x in locations if not x['name'] == self.location['name']]
@@ -103,6 +117,14 @@ class SyncAction(AdvancedBaseAction):
         if exclude_inaccessibles:
             # filter non accessible locations
             locations = [x for x in locations if x.accessor]
+
+        # Filter by component availability (for source location dropdown)
+        if filter_by_availability is not None:
+            locations = [
+                x for x in locations
+                if x['name'] in filter_by_availability
+                and filter_by_availability[x['name']][0] > 0  # available_count > 0
+            ]
 
         locations = sorted(locations, key=lambda x: x['name'], reverse=True)
 
@@ -119,8 +141,15 @@ class SyncAction(AdvancedBaseAction):
             if location['name'] == 'ftrack.server':
                 status = '[ONLINE]'
 
+            # Add availability info if filtering by components
+            availability_info = ''
+            if filter_by_availability and location['name'] in filter_by_availability:
+                available, total = filter_by_availability[location['name']]
+                percentage = (available / total * 100) if total > 0 else 0
+                availability_info = ' ({}/{} - {:.0f}%)'.format(available, total, percentage)
+
             item = {
-                'label': '{} {}'.format(status, location['name']),
+                'label': '{} {}{}'.format(status, location['name'], availability_info),
                 'value': location['name']
             }
 
@@ -160,11 +189,85 @@ class SyncAction(AdvancedBaseAction):
 
         return event
 
+    def get_component_locations(self, components):
+        """Get locations where components are available.
+
+        Args:
+            components: List of component entities or IDs
+
+        Returns:
+            dict: {location_name: (available_count, total_count)}
+        """
+        location_availability = {}
+
+        for location in self.get_locations():
+            location_name = location['name']
+            if location_name in self._ignored_locations:
+                continue
+
+            available = 0
+            total = 0
+
+            for component in components:
+                # Handle both component entities and component IDs
+                if isinstance(component, dict):
+                    comp_id = component.get('id')
+                    component_entity = component
+                else:
+                    comp_id = component
+                    component_entity = self.session.get('FileComponent', comp_id)
+
+                if not component_entity:
+                    continue
+
+                total += 1
+
+                try:
+                    availability = location.get_component_availability(component_entity)
+                    if availability == 100.0:
+                        available += 1
+                except Exception as e:
+                    self.logger.debug(
+                        f"[get_component_locations] Error checking {location_name} "
+                        f"for component {comp_id}: {e}"
+                    )
+
+            if total > 0:
+                location_availability[location_name] = (available, total)
+
+        return location_availability
+
     def get_locations_ui(self, event):
+        # Get selected entities to determine available locations
+        selection = event.get('data', {}).get('selection', [])
+
+        # Extract components from selection
+        components = []
+        for item in selection:
+            entity_type = item.get('entityType') or item.get('entity_type')
+            entity_id = item.get('entityId') or item.get('entity_id')
+
+            try:
+                entity_type = self._get_entity_type(item)
+            except (ValueError, KeyError):
+                continue
+
+            if entity_type == 'AssetVersion':
+                # Get all components for this asset version
+                version = self.session.get('AssetVersion', entity_id)
+                if version:
+                    components.extend(version.get('components', []))
+            elif entity_type == 'FileComponent':
+                # Direct component selection
+                components.append(entity_id)
+
+        # Get location availability for these components
+        location_availability = self.get_component_locations(components)
+
         menu = {
             'type': 'form',
             'items': [],
-            'title': 'Sync Tool',
+            'title': 'Sync Tool - {} component(s) selected'.format(len(components)),
             'submit_button_label': 'Sync'
         }
 
@@ -182,12 +285,13 @@ class SyncAction(AdvancedBaseAction):
             }
         )
 
+        # Pass location availability to filter source locations
         menu['items'].append(
             self.get_locations_menu(
                 'source_location',
                 label='Source',
                 default_value=self.get_current_location(name=True),
-                # exclude_inaccessibles=True
+                filter_by_availability=location_availability
             )
         )
 
@@ -195,7 +299,7 @@ class SyncAction(AdvancedBaseAction):
             self.get_locations_menu(
                 'dest_location',
                 label='Destination',
-                #exclude_self=True
+                filter_by_availability=None  # Show all for destination
             )
         )
 
