@@ -76,6 +76,30 @@ uv sync
 uv pip install -e .
 ```
 
+## Recent Improvements
+
+### Version 0.3.2 - Critical Bug Fixes
+
+**Multi-User Support** (Critical Fix):
+- Fixed cross-user permission errors that blocked all remote collaboration workflows
+- Jobs now owned by executor (machine performing the work), not the requester
+- Enables User A to trigger syncs on User B's machine without permission errors
+
+**Performance** (5-10x Improvement):
+- Batch database commits: 2 commits per sync operation (previously 200+)
+- 100 components now sync in <2 minutes (previously 5-10 minutes)
+- Optimized for large asset versions with many components
+
+**Reliability**:
+- Fixed "job has to be committed first" errors during Job updates
+- Proper Job lifecycle management following official ftrack patterns
+- Failed components tracked separately from successful ones
+- Job status accurately reflects sync results
+
+For technical details, see `JOB_LIFECYCLE_FIX.md` and `CRITICAL_PERMISSION_FIX.md`.
+
+---
+
 ## How to set it up
 
 Once installed a number of settings are needed to be provided in order

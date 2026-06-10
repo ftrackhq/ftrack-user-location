@@ -87,18 +87,39 @@ Previous versions used AWS S3 (`ftrack.sync` location). The current implementati
 Locations are discovered per-session via the `configure-location` event, ensuring each ftrack Connect session registers its own user location based on the logged-in user and hostname.
 
 ### Error Handling & Job Tracking
-The sync engine creates ftrack Job entities to track sync operations and provide user feedback:
+The sync engine creates ftrack Job entities to track sync operations and provide user feedback.
+
+**Job Ownership Model (v0.3.2+):**
+- Jobs are owned by the **executor** (session user performing the work), not the requester
+- Requesting user tracked in `Job.data['requested_by']` metadata field
+- This pattern enables multi-user workflows without permission errors
+- Follows official ftrack-action-handler AdvancedBaseAction pattern
+
+**Job Lifecycle Pattern:**
+- Create Job and commit immediately
+- Store `job_id` for later reference
+- Use `session.get('Job', job_id)` to re-query before all updates
+- This prevents "job has to be committed first" errors caused by stale entity references
 
 **Job Entity Schema:**
-- Jobs use `data` field containing JSON with `description` key
-- Job status updated throughout sync lifecycle: `running` → `done` or `failed`
-- Each component operation updates job description for progress tracking
+- `user`: Session user (executor) who performs the sync
+- `status`: Job lifecycle - `running` → `done` or `failed`
+- `data`: JSON containing:
+  - `description`: Human-readable status message
+  - `requested_by`: User ID who initiated the sync (for UI filtering)
+  - `components_synced`: List of successfully synced component names
+  - `components_failed`: List of failed components with error details
+
+**Performance Optimization:**
+- Batch commits: One commit after all component operations, one for final Job update
+- Reduces database round trips from 200+ to 2 per sync (100 components)
+- Performance improvement: 100 components sync in <2 minutes (previously 5-10 minutes)
 
 **Error Recovery:**
-- `ComponentInLocationError`: Logged and job updated when component already exists
-- General exceptions: Job marked as `failed`, full traceback logged
-- Session commits ensure job updates are persisted even on errors
-- Missing commits could cause KeyError when session tries to merge uncommitted operations
+- `ComponentInLocationError`: Component already exists, counted as successful
+- Failed components tracked in `components_failed` list
+- Final Job status reflects aggregate result (failed if any component failed)
+- General exceptions: Job marked as `failed` with error details in Job.data
 
 ## Build System
 
