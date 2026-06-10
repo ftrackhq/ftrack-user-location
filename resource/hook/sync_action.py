@@ -55,9 +55,8 @@ class SyncAction(AdvancedBaseAction):
             'ftrack.review'
         ]
 
-        self.logger.info(
-            f"[__init__] SyncAction initialized for location: {self.location['name']}"
-        )
+        # Note: Cannot log location name here as session.types is not yet initialized
+        # Location logging happens in _register() when session is fully ready
 
     @property
     def variant(self):
