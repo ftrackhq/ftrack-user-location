@@ -108,7 +108,7 @@ class SyncAction(AdvancedBaseAction):
                 return True
 
         # Subscribe to pong responses
-        pong_topic = f'ftrack.location.ping.response.{location_name}'
+        pong_topic = f'topic=ftrack.location.ping.response.{location_name}'
         self.session.event_hub.subscribe(pong_topic, handle_pong)
 
         try:
@@ -128,8 +128,11 @@ class SyncAction(AdvancedBaseAction):
             return response_received['value']
 
         finally:
-            # Unsubscribe to avoid leaks
-            self.session.event_hub.unsubscribe(pong_topic, handle_pong)
+            # Unsubscribe to avoid leaks (pass callback to match specific subscription)
+            try:
+                self.session.event_hub.unsubscribe(pong_topic, handle_pong)
+            except Exception as e:
+                self.logger.debug(f"[check_remote_location_online] Unsubscribe cleanup error: {e}")
 
     def get_locations_menu(
             self, field_id, label=None,
