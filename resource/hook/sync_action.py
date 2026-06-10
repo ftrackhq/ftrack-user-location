@@ -227,13 +227,27 @@ class SyncAction(AdvancedBaseAction):
             if can_check:
                 # We can check availability (local location or ftrack.server)
                 for component in components:
-                    # Handle both component entities and component IDs
-                    if isinstance(component, dict):
-                        comp_id = component.get('id')
+                    # Handle different component formats:
+                    # - FileComponent entity object (from version['components'])
+                    # - Dict with 'id' key
+                    # - String ID
+
+                    if hasattr(component, 'entity_type'):
+                        # It's already a FileComponent entity
                         component_entity = component
-                    else:
-                        comp_id = component
+                    elif isinstance(component, dict):
+                        # It's a dict, get the ID
+                        comp_id = component.get('id')
                         component_entity = self.session.get('FileComponent', comp_id)
+                    elif isinstance(component, str):
+                        # It's a string ID
+                        component_entity = self.session.get('FileComponent', component)
+                    else:
+                        # Unknown format, skip
+                        self.logger.warning(
+                            f"[get_component_locations] Unknown component format: {type(component)}"
+                        )
+                        continue
 
                     if not component_entity:
                         continue
@@ -245,7 +259,7 @@ class SyncAction(AdvancedBaseAction):
                     except Exception as e:
                         self.logger.debug(
                             f"[get_component_locations] Error checking {location_name} "
-                            f"for component {comp_id}: {e}"
+                            f"for component {component_entity['id']}: {e}"
                         )
             else:
                 # Remote location - can't check from this machine
