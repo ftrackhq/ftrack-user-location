@@ -288,6 +288,49 @@ class SyncAction(BaseAction):
 
         return accepts
 
+    def check_components_availability(self, components, location_name):
+        """Check how many components are available in a location.
+
+        Args:
+            components: List of component dicts with 'entityId' and 'entityType'
+            location_name: Name of location to check
+
+        Returns:
+            tuple: (available_count, total_count, available_component_ids)
+        """
+        location = self.session.query(
+            f'Location where name is "{location_name}"'
+        ).first()
+
+        if not location:
+            self.logger.warning(
+                f"[check_availability] Location not found: {location_name}"
+            )
+            return 0, 0, []
+
+        available_ids = []
+        total = 0
+
+        for item in components:
+            entity = self.session.get(item['entityType'], item['entityId'])
+            if entity['entity_type'] == 'AssetVersion':
+                for component in entity.get('components', []):
+                    total += 1
+                    if 'ftrackreview' in component['name']:
+                        continue
+
+                    try:
+                        availability = location.get_component_availability(component)
+                        if availability == 100.0:
+                            available_ids.append(component['id'])
+                    except Exception as e:
+                        self.logger.debug(
+                            f"[check_availability] Error checking component "
+                            f"{component['name']}: {e}"
+                        )
+
+        return len(available_ids), total, available_ids
+
     def launch(self, session, entities, event):
         self.logger.info("Sync action launched from location {}".format(self.location['name']))
 
@@ -303,9 +346,93 @@ class SyncAction(BaseAction):
                     'message': str(e)
                 }
 
-            # CRITICAL FIX: Use SOURCE location in actionIdentifier, not self.location
-            # This ensures the event is picked up by the machine that HAS the source location
             source_location = event['data']['values']['source_location']
+            dest_location = event['data']['values']['dest_location']
+            selection = event['data'].get('selection', [])
+
+            # SMART SYNC: Check if components already available in ftrack.server
+            # This allows sync even if remote machine is offline
+            if source_location != 'ftrack.server' and source_location != self.location['name']:
+                self.logger.info(
+                    f"[launch] Smart sync: Checking ftrack.server availability first "
+                    f"(source={source_location}, requesting_machine={self.location['name']})"
+                )
+
+                available, total, available_ids = self.check_components_availability(
+                    selection, 'ftrack.server'
+                )
+
+                self.logger.info(
+                    f"[launch] ftrack.server has {available}/{total} components available "
+                    f"({available/total*100:.1f}% if total > 0 else 0)"
+                )
+
+                if available == total and total > 0:
+                    # ALL components available in ftrack.server - sync directly!
+                    self.logger.info(
+                        f"[launch] ✅ All components available in ftrack.server - "
+                        f"syncing directly (remote machine not needed)"
+                    )
+
+                    # Trigger direct sync from ftrack.server to local
+                    sync.on_sync_to_destination(
+                        self.session,
+                        self.session.query('Location where name is "ftrack.server"').first()['id'],
+                        self.location['id'],
+                        [{'id': cid} for cid in available_ids],
+                        event['source']['user']['id']
+                    )
+
+                    return {
+                        'success': True,
+                        'message': (
+                            f'Synced {available} components from ftrack.server to '
+                            f'{self.location["name"]} (remote machine not needed)'
+                        )
+                    }
+
+                elif available > 0:
+                    # PARTIAL availability - sync available ones now, request missing ones
+                    self.logger.info(
+                        f"[launch] ⚠️ Partial availability: {available}/{total} components "
+                        f"in ftrack.server. Syncing available components now, "
+                        f"then requesting missing from remote machine."
+                    )
+
+                    # Sync available components immediately
+                    sync.on_sync_to_destination(
+                        self.session,
+                        self.session.query('Location where name is "ftrack.server"').first()['id'],
+                        self.location['id'],
+                        [{'id': cid} for cid in available_ids],
+                        event['source']['user']['id']
+                    )
+
+                    # Publish event for remote machine to upload missing components
+                    event['data']['actionIdentifier'] = '{}-to-ftrack'.format(source_location)
+                    self.logger.info(
+                        f"[launch] Publishing event to remote machine for missing "
+                        f"{total - available} components"
+                    )
+                    self.session.event_hub.publish(event)
+
+                    return {
+                        'success': True,
+                        'message': (
+                            f'Synced {available} components from ftrack.server. '
+                            f'Requested {total - available} missing components from '
+                            f'remote machine.'
+                        )
+                    }
+
+                else:
+                    # NO components in ftrack.server - must use remote machine
+                    self.logger.info(
+                        f"[launch] ❌ No components in ftrack.server - "
+                        f"must request from remote machine {source_location}"
+                    )
+
+            # Standard event-based sync (remote machine or local location)
             event['data']['actionIdentifier'] = '{}-to-ftrack'.format(source_location)
             self.logger.info(
                 f"Publishing sync event: {source_location} → ftrack.server "
