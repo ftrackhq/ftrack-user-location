@@ -358,7 +358,7 @@ class SyncAction(AdvancedBaseAction):
                 continue
 
             entity = self.session.get(entity_type, entity_id)
-            if entity and entity['entity_type'] == 'AssetVersion':
+            if entity and entity.entity_type == 'AssetVersion':
                 for component in entity.get('components', []):
                     total += 1
                     if 'ftrackreview' in component['name']:
