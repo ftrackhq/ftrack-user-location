@@ -14,7 +14,7 @@ sys.path.append(dependencies_directory)
 
 
 import ftrack_api
-from ftrack_action_handler.action import BaseAction
+from ftrack_action_handler.action import AdvancedBaseAction
 from ftrack_user_location import sync
 
 
@@ -23,11 +23,25 @@ logger = logging.getLogger(
 )
 
 
-class SyncAction(BaseAction):
+class SyncAction(AdvancedBaseAction):
+    """Sync action for transferring components between locations.
 
-    name = 'ftrack sync tool'
+    Migrated to AdvancedBaseAction for:
+    - Automatic entity type filtering (allowed_types)
+    - Built-in permission checking
+    - Standard ftrack action patterns
+    """
+
+    # Action metadata
     label = 'ftrack sync tool'
     identifier = 'ftrack.fsync'
+    description = 'Sync components between user locations and ftrack.server'
+
+    # Entity filtering - only show action for AssetVersions
+    allowed_types = ['AssetVersion']
+
+    # Allow empty context for testing
+    allow_empty_context = False
 
     def __init__(self, session):
         super(SyncAction, self).__init__(session)
@@ -40,6 +54,10 @@ class SyncAction(BaseAction):
             'ftrack.connect',
             'ftrack.review'
         ]
+
+        self.logger.info(
+            f"[__init__] SyncAction initialized for location: {self.location['name']}"
+        )
 
     @property
     def variant(self):
@@ -225,7 +243,8 @@ class SyncAction(BaseAction):
             _id = event['source']['id']
             source_location = event['data']['values']['source_location']
             dest_location = event['data']['values']['dest_location']
-            selection = event['data'].get('selection', [])
+            # Use AdvancedBaseAction's selection extraction pattern
+            selection = self._get_selection_(event)
             user_id = event['source']['user']['id']
 
             self.logger.info(
@@ -269,22 +288,31 @@ class SyncAction(BaseAction):
             }
 
     def discover(self, session, entities, event):
+        """Return True if action should be discoverable.
+
+        Note: AdvancedBaseAction already filtered by allowed_types=['AssetVersion'],
+        so we only get AssetVersion entities here.
+        """
         if not entities:
+            self.logger.debug("[discover] No entities selected, not discoverable")
             return False
 
-        entity_type, entity_id = entities[0]
-        if entity_type != 'AssetVersion':
-            return False
-
+        self.logger.debug(
+            f"[discover] Action discoverable for {len(entities)} AssetVersion(s)"
+        )
         return True
 
     def _discover(self, event):
+        """Override to add location to discovered action items."""
         accepts = super(SyncAction, self)._discover(event)
-        # add location to discovered item.
 
+        # Add location to discovered item so UI knows which machine this action is from
         if accepts:
             for item in accepts['items']:
                 item['location'] = self.location['name']
+                self.logger.debug(
+                    f"[_discover] Action discovered for location: {self.location['name']}"
+                )
 
         return accepts
 
@@ -365,7 +393,8 @@ class SyncAction(BaseAction):
 
             source_location = event['data']['values']['source_location']
             dest_location = event['data']['values']['dest_location']
-            selection = event['data'].get('selection', [])
+            # Use AdvancedBaseAction's selection extraction pattern
+            selection = self._get_selection_(event)
 
             # SMART SYNC: Check if components already available in ftrack.server
             # This allows sync even if remote machine is offline
