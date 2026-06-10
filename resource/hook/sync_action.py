@@ -16,7 +16,11 @@ sys.path.append(dependencies_directory)
 import ftrack_api
 from ftrack_action_handler.action import AdvancedBaseAction
 from ftrack_user_location import sync
+from ftrack_user_location.configure_logging import configure_logging
 
+# Ensure logging is configured for this hook
+# (hooks run outside the package __init__, so configure explicitly)
+configure_logging('ftrack_user_location', level=logging.DEBUG)
 
 logger = logging.getLogger(
     'ftrack_user_location.SyncAction'

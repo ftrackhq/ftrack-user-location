@@ -9,7 +9,11 @@ import platform
 import ftrack_api
 import ftrack_api.accessor.disk as _disk
 import ftrack_api.structure.standard as _standard
+from ftrack_user_location.configure_logging import configure_logging
 
+# Ensure logging is configured for this location hook
+# (hooks run outside the package __init__, so configure explicitly)
+configure_logging('ftrack_user_location', level=logging.DEBUG)
 
 logger = logging.getLogger(
     'ftrack_user_location'
