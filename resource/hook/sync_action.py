@@ -415,13 +415,28 @@ class SyncAction(AdvancedBaseAction):
 
         Note: AdvancedBaseAction already filtered by allowed_types=['AssetVersion'],
         so we only get AssetVersion entities here.
+
+        Only show action for the current session user to avoid duplicates when
+        multiple users have Connect running.
         """
         if not entities:
             self.logger.debug("[discover] No entities selected, not discoverable")
             return False
 
+        # Only show action for the current session user (user running this Connect)
+        event_user = event.get('source', {}).get('user', {}).get('username')
+        session_user = session.api_user
+
+        if event_user and event_user != session_user:
+            self.logger.debug(
+                f"[discover] Action not discoverable - event from different user "
+                f"[event_user={event_user}, session_user={session_user}]"
+            )
+            return False
+
         self.logger.debug(
-            f"[discover] Action discoverable for {len(entities)} AssetVersion(s)"
+            f"[discover] Action discoverable for {len(entities)} AssetVersion(s) "
+            f"[user={session_user}]"
         )
         return True
 
