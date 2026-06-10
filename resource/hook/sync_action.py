@@ -115,6 +115,7 @@ class SyncAction(AdvancedBaseAction):
             # Publish ping event
             ping_event = {
                 'topic': f'ftrack.location.ping.{location_name}',
+                'source': {},  # Event hub will populate with connection ID
                 'data': {
                     'location': location_name,
                     'requestor': self.location['name']
@@ -421,6 +422,7 @@ class SyncAction(AdvancedBaseAction):
         pong_topic = f'ftrack.location.ping.response.{location_name}'
         pong_event = {
             'topic': pong_topic,
+            'source': {},  # Event hub will populate with connection ID
             'data': {
                 'location': location_name,
                 'online': True,
