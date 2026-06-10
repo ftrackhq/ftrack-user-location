@@ -4,6 +4,7 @@
 import os
 import sys
 import logging
+import threading
 
 # Add dependencies directory to path so we can import ftrack_user_location
 dependencies_directory = os.path.abspath(
@@ -94,6 +95,9 @@ class SyncAction(AdvancedBaseAction):
         """Handle pong responses from remote locations.
 
         This is subscribed at startup to ALL pong responses.
+
+        Returns:
+            dict: Success status required by event hub
         """
         location_name = event['data'].get('location')
 
@@ -106,6 +110,8 @@ class SyncAction(AdvancedBaseAction):
             if location_name in self._ping_responses:
                 self._ping_responses[location_name].set()
 
+        return {'success': True}
+
     def check_remote_location_online(self, location_name, timeout=2.0):
         """Check if a remote location is online by pinging via event.
 
@@ -116,8 +122,6 @@ class SyncAction(AdvancedBaseAction):
         Returns:
             bool: True if location responds, False otherwise
         """
-        import threading
-
         # Create a response event for this check
         response_event = threading.Event()
 
@@ -438,10 +442,9 @@ class SyncAction(AdvancedBaseAction):
             f"[handle_ping] Received ping from {requestor} for {location_name}"
         )
 
-        # Respond with pong
-        pong_topic = f'ftrack.location.ping.response.{location_name}'
+        # Respond with pong using consistent topic + data pattern
         pong_event = {
-            'topic': pong_topic,
+            'topic': 'ftrack.location.ping.response',
             'source': {},  # Event hub will populate with connection ID
             'data': {
                 'location': location_name,
@@ -842,11 +845,11 @@ class SyncAction(AdvancedBaseAction):
         )
 
         # Subscribe to ALL pong responses (for checking remote location status)
-        # Use wildcard pattern to match all response topics
-        pong_topic = 'topic=ftrack.location.ping.response.*'
+        # Subscribe to base topic - will receive all subtopics
+        pong_topic = 'topic=ftrack.location.ping.response'
         self.session.event_hub.subscribe(pong_topic, self.handle_pong_response)
         self.logger.info(
-            f"[_register] Subscribed to PONG responses: {pong_topic}"
+            f"[_register] Subscribed to PONG responses: {pong_topic} (all subtopics)"
         )
 
         for location in accessible_locations:
