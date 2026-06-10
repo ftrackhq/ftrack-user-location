@@ -52,6 +52,11 @@ class SyncAction(AdvancedBaseAction):
         super(SyncAction, self).__init__(session)
         self._location_data = {}
         self._sync_data = {}
+
+        # Track ping responses for presence detection
+        self._ping_responses = {}  # {location_name: threading.Event}
+        self._ping_lock = threading.Lock()
+
         # Locations to exclude from sync UI
         # Note: ftrack.server is NOT excluded - it's a valid source/destination
         self._ignored_locations = [
@@ -84,6 +89,22 @@ class SyncAction(AdvancedBaseAction):
             location = location['name']
         return location
 
+    def handle_pong_response(self, event):
+        """Handle pong responses from remote locations.
+
+        This is subscribed at startup to ALL pong responses.
+        """
+        location_name = event['data'].get('location')
+
+        self.logger.debug(
+            f"[handle_pong_response] Received pong from {location_name}"
+        )
+
+        # Signal any waiting ping check
+        with self._ping_lock:
+            if location_name in self._ping_responses:
+                self._ping_responses[location_name].set()
+
     def check_remote_location_online(self, location_name, timeout=2.0):
         """Check if a remote location is online by pinging via event.
 
@@ -96,20 +117,11 @@ class SyncAction(AdvancedBaseAction):
         """
         import threading
 
-        # Create a response tracker
-        response_received = {'value': False}
+        # Create a response event for this check
         response_event = threading.Event()
 
-        def handle_pong(event):
-            """Handle the pong response."""
-            if event['data'].get('location') == location_name:
-                response_received['value'] = True
-                response_event.set()
-                return True
-
-        # Subscribe to pong responses
-        pong_topic = f'topic=ftrack.location.ping.response.{location_name}'
-        self.session.event_hub.subscribe(pong_topic, handle_pong)
+        with self._ping_lock:
+            self._ping_responses[location_name] = response_event
 
         try:
             # Publish ping event
@@ -121,19 +133,26 @@ class SyncAction(AdvancedBaseAction):
                     'requestor': self.location['name']
                 }
             }
+
+            self.logger.debug(
+                f"[check_remote_location_online] Pinging {location_name}"
+            )
+
             self.session.event_hub.publish(ping_event)
 
             # Wait for response with timeout
-            response_event.wait(timeout=timeout)
+            got_response = response_event.wait(timeout=timeout)
 
-            return response_received['value']
+            self.logger.debug(
+                f"[check_remote_location_online] {location_name} response: {got_response}"
+            )
+
+            return got_response
 
         finally:
-            # Unsubscribe to avoid leaks
-            try:
-                self.session.event_hub.unsubscribe(pong_topic)
-            except Exception as e:
-                self.logger.debug(f"[check_remote_location_online] Unsubscribe cleanup error: {e}")
+            # Clean up response tracker
+            with self._ping_lock:
+                self._ping_responses.pop(location_name, None)
 
     def get_locations_menu(
             self, field_id, label=None,
@@ -828,6 +847,14 @@ class SyncAction(AdvancedBaseAction):
         self.session.event_hub.subscribe(ping_topic, self.handle_ping)
         self.logger.info(
             f"[_register] Subscribed to PING requests: {ping_topic}"
+        )
+
+        # Subscribe to ALL pong responses (for checking remote location status)
+        # Use wildcard pattern to match all response topics
+        pong_topic = 'topic=ftrack.location.ping.response.*'
+        self.session.event_hub.subscribe(pong_topic, self.handle_pong_response)
+        self.logger.info(
+            f"[_register] Subscribed to PONG responses: {pong_topic}"
         )
 
         for location in accessible_locations:
