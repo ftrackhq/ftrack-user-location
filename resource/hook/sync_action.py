@@ -84,6 +84,53 @@ class SyncAction(AdvancedBaseAction):
             location = location['name']
         return location
 
+    def check_remote_location_online(self, location_name, timeout=2.0):
+        """Check if a remote location is online by pinging via event.
+
+        Args:
+            location_name: Name of the location to check
+            timeout: Seconds to wait for response
+
+        Returns:
+            bool: True if location responds, False otherwise
+        """
+        import threading
+
+        # Create a response tracker
+        response_received = {'value': False}
+        response_event = threading.Event()
+
+        def handle_pong(event):
+            """Handle the pong response."""
+            if event['data'].get('location') == location_name:
+                response_received['value'] = True
+                response_event.set()
+                return True
+
+        # Subscribe to pong responses
+        pong_topic = f'ftrack.location.ping.response.{location_name}'
+        self.session.event_hub.subscribe(pong_topic, handle_pong)
+
+        try:
+            # Publish ping event
+            ping_event = {
+                'topic': f'ftrack.location.ping.{location_name}',
+                'data': {
+                    'location': location_name,
+                    'requestor': self.location['name']
+                }
+            }
+            self.session.event_hub.publish(ping_event)
+
+            # Wait for response with timeout
+            response_event.wait(timeout=timeout)
+
+            return response_received['value']
+
+        finally:
+            # Unsubscribe to avoid leaks
+            self.session.event_hub.unsubscribe(pong_topic, handle_pong)
+
     def get_locations_menu(
             self, field_id, label=None,
             default_value=None, exclude_self=False, exclude_inaccessibles=False,
@@ -136,16 +183,22 @@ class SyncAction(AdvancedBaseAction):
 
         for location in locations:
             # Show online status indicator
-            # [ONLINE] = accessible (has accessor on this machine or ftrack.server)
-            # [OFFLINE] = offline (no accessor, likely remote machine not running)
+            # [ONLINE] = accessible (has accessor) or ping responds
+            # [OFFLINE] = no accessor and no ping response
             if location.accessor:
+                # Has accessor on this machine
+                status = '[ONLINE]'
+            elif location['name'] == 'ftrack.server':
+                # ftrack.server is always online
                 status = '[ONLINE]'
             else:
-                status = '[OFFLINE]'
-
-            # ftrack.server is always considered "online" for display purposes
-            if location['name'] == 'ftrack.server':
-                status = '[ONLINE]'
+                # Remote location - check via ping
+                is_online = self.check_remote_location_online(location['name'])
+                status = '[ONLINE]' if is_online else '[OFFLINE]'
+                self.logger.debug(
+                    f"[get_locations_menu] Remote location {location['name']} "
+                    f"ping check: {'online' if is_online else 'offline'}"
+                )
 
             # Add availability info if filtering by components
             availability_info = ''
@@ -344,6 +397,40 @@ class SyncAction(AdvancedBaseAction):
 
         event.update(menu)
         return event
+
+    def handle_ping(self, event):
+        """Respond to ping requests to indicate this location is online.
+
+        Args:
+            event: The ping event
+
+        Returns:
+            dict: Pong response
+        """
+        location_name = event['data'].get('location')
+        requestor = event['data'].get('requestor')
+
+        self.logger.debug(
+            f"[handle_ping] Received ping from {requestor} for {location_name}"
+        )
+
+        # Respond with pong
+        pong_topic = f'ftrack.location.ping.response.{location_name}'
+        pong_event = {
+            'topic': pong_topic,
+            'data': {
+                'location': location_name,
+                'online': True,
+                'requestor': requestor
+            }
+        }
+        self.session.event_hub.publish(pong_event)
+
+        self.logger.debug(
+            f"[handle_ping] Sent pong response to {requestor}"
+        )
+
+        return {'success': True}
 
     def sync_here(self, event=None):
         """Handle ftrack.sync event - downloads FROM ftrack.server TO local."""
@@ -706,6 +793,13 @@ class SyncAction(AdvancedBaseAction):
         self.logger.info(
             f"[_register] Found {len(accessible_locations)} accessible locations "
             f"on this machine: {[loc['name'] for loc in accessible_locations]}"
+        )
+
+        # Subscribe to ping requests for this location's presence check
+        ping_topic = f'topic=ftrack.location.ping.{self.location["name"]}'
+        self.session.event_hub.subscribe(ping_topic, self.handle_ping)
+        self.logger.info(
+            f"[_register] Subscribed to PING requests: {ping_topic}"
         )
 
         for location in accessible_locations:
