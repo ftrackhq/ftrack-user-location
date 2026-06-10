@@ -399,11 +399,8 @@ class SyncAction(AdvancedBaseAction):
             )
         )
 
-        # Update event with form structure and return
-        # event parameter is an Event object, convert to dict first
-        result = dict(event)
-        result.update(menu)
-        return result
+        # Return the menu structure (with 'items', 'title', etc.)
+        return menu
 
     def handle_ping(self, event):
         """Respond to ping requests to indicate this location is online.
@@ -651,12 +648,29 @@ class SyncAction(AdvancedBaseAction):
 
         return len(available_ids), total, available_ids
 
+    def interface(self, session, entities, event):
+        """Return the form interface for location selection.
+
+        This is called first by BaseAction._launch() before launch().
+        Returns form items list, which BaseAction wraps in {'items': ...}
+        """
+        self.logger.info("[interface] Building sync UI for location {}".format(self.location['name']))
+
+        # Get the full form structure from get_locations_ui
+        form_dict = self.get_locations_ui(event)
+
+        # Return just the items list - BaseAction._interface() wraps it
+        return form_dict.get('items', [])
+
     def launch(self, session, entities, event):
+        """Execute the sync action after form is submitted.
+
+        This is called by BaseAction._launch() after interface() returns None
+        (i.e., when form values are present).
+        """
         self.logger.info("Sync action launched from location {}".format(self.location['name']))
 
-        if 'values' not in event['data']:
-            return self.get_locations_ui(event)
-        else:
+        if 'values' in event['data']:
             try:
                 event = self.build_sync_event(event)
             except ValueError as e:
@@ -763,6 +777,13 @@ class SyncAction(AdvancedBaseAction):
             return {
                 'success': True,
                 'message': f'Sync request published: {source_location} → ftrack.server (will be executed by remote machine)'
+            }
+        else:
+            # This shouldn't happen - interface() should handle form display
+            self.logger.error("[launch] Called without values - interface() should have handled this")
+            return {
+                'success': False,
+                'message': 'Internal error: launch called without form values'
             }
 
     def register(self):
