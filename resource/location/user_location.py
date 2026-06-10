@@ -9,6 +9,13 @@ import platform
 import ftrack_api
 import ftrack_api.accessor.disk as _disk
 import ftrack_api.structure.standard as _standard
+
+# Add source directory to path so we can import ftrack_user_location
+_PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+_SOURCE_PATH = os.path.join(_PLUGIN_ROOT, 'dependencies')
+if _SOURCE_PATH not in sys.path:
+    sys.path.insert(0, _SOURCE_PATH)
+
 from ftrack_user_location.configure_logging import configure_logging
 
 # Ensure logging is configured for this location hook

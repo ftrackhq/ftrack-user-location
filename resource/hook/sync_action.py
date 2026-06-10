@@ -15,6 +15,15 @@ sys.path.append(dependencies_directory)
 
 import ftrack_api
 from ftrack_action_handler.action import AdvancedBaseAction
+
+# Add source directory to path so we can import ftrack_user_location
+import os
+import sys
+_PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+_SOURCE_PATH = os.path.join(_PLUGIN_ROOT, 'dependencies')
+if _SOURCE_PATH not in sys.path:
+    sys.path.insert(0, _SOURCE_PATH)
+
 from ftrack_user_location import sync
 from ftrack_user_location.configure_logging import configure_logging
 
