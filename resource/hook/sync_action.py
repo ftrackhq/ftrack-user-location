@@ -129,9 +129,9 @@ class SyncAction(AdvancedBaseAction):
             return response_received['value']
 
         finally:
-            # Unsubscribe to avoid leaks (pass callback to match specific subscription)
+            # Unsubscribe to avoid leaks
             try:
-                self.session.event_hub.unsubscribe(pong_topic, handle_pong)
+                self.session.event_hub.unsubscribe(pong_topic)
             except Exception as e:
                 self.logger.debug(f"[check_remote_location_online] Unsubscribe cleanup error: {e}")
 
@@ -399,8 +399,8 @@ class SyncAction(AdvancedBaseAction):
             )
         )
 
-        event.update(menu)
-        return event
+        # Return the menu form structure
+        return menu
 
     def handle_ping(self, event):
         """Respond to ping requests to indicate this location is online.
