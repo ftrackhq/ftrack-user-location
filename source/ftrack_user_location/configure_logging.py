@@ -88,7 +88,13 @@ def configure_logging(logger_name, level=None, format=None, extra_modules=None):
             },
 
         },
-        'filters': {'filtered': {'name': logger_name}},
+        'filters': {
+            'filtered': {
+                '()': lambda: type('LoggerNameFilter', (logging.Filter,), {
+                    'filter': lambda self, record: record.name.startswith(logger_name)
+                })()
+            }
+        },
         'formatters': {
             'file': {
                 'format': format
