@@ -312,8 +312,22 @@ class SyncAction(BaseAction):
         total = 0
 
         for item in components:
-            entity = self.session.get(item['entityType'], item['entityId'])
-            if entity['entity_type'] == 'AssetVersion':
+            # Use entity_type (underscore, PascalCase) not entityType (camelCase)
+            entity_type = item.get('entity_type') or item.get('entityType', '').title()
+            entity_id = item.get('entity_id') or item.get('entityId')
+
+            if not entity_type or not entity_id:
+                self.logger.warning(
+                    f"[check_availability] Invalid item in selection: {item}"
+                )
+                continue
+
+            # Ensure entity_type is PascalCase (AssetVersion not assetversion)
+            if entity_type.lower() == 'assetversion':
+                entity_type = 'AssetVersion'
+
+            entity = self.session.get(entity_type, entity_id)
+            if entity and entity['entity_type'] == 'AssetVersion':
                 for component in entity.get('components', []):
                     total += 1
                     if 'ftrackreview' in component['name']:
