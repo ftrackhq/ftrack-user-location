@@ -108,16 +108,16 @@ class SyncAction(AdvancedBaseAction):
 
         for location in locations:
             # Show online status indicator
-            # ✅ = accessible (has accessor on this machine or ftrack.server)
-            # 💤 = offline (no accessor, likely remote machine not running)
+            # [ONLINE] = accessible (has accessor on this machine or ftrack.server)
+            # [OFFLINE] = offline (no accessor, likely remote machine not running)
             if location.accessor:
-                status = '✅'
+                status = '[ONLINE]'
             else:
-                status = '💤'
+                status = '[OFFLINE]'
 
             # ftrack.server is always considered "online" for display purposes
             if location['name'] == 'ftrack.server':
-                status = '✅'
+                status = '[ONLINE]'
 
             item = {
                 'label': '{} {}'.format(status, location['name']),

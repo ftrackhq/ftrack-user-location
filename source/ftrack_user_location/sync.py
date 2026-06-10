@@ -586,7 +586,7 @@ def on_sync_to_remote(session, source, destination, requesting_user_id, selectio
                 size_str = _format_size(component_size)
                 _log_sync_context(
                     logger.warning,
-                    "⚠️ Large component detected - sync may take a while",
+                    "WARNING: Large component detected - sync may take a while",
                     job_id=job_id,
                     component=component_name,
                     size=size_str,
