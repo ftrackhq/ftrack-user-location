@@ -47,9 +47,10 @@ class SyncAction(AdvancedBaseAction):
         super(SyncAction, self).__init__(session)
         self._location_data = {}
         self._sync_data = {}
+        # Locations to exclude from sync UI
+        # Note: ftrack.server is NOT excluded - it's a valid source/destination
         self._ignored_locations = [
             'ftrack.origin',
-            'ftrack.server',
             'ftrack.unmanaged',
             'ftrack.connect',
             'ftrack.review'
