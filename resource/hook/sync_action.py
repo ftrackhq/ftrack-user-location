@@ -71,7 +71,8 @@ class SyncAction(AdvancedBaseAction):
 
     @property
     def variant(self):
-        return 'Sync @ {}'.format(self.location['name'])
+        # No variant - single action for all users
+        return None
 
     @property
     def location(self):
@@ -594,16 +595,13 @@ class SyncAction(AdvancedBaseAction):
         return True
 
     def _discover(self, event):
-        """Override to add location to discovered action items."""
+        """Discover action - single action visible to all users."""
         accepts = super(SyncAction, self)._discover(event)
 
-        # Add location to discovered item so UI knows which machine this action is from
         if accepts:
-            for item in accepts['items']:
-                item['location'] = self.location['name']
-                self.logger.debug(
-                    f"[_discover] Action discovered for location: {self.location['name']}"
-                )
+            self.logger.debug(
+                f"[_discover] Action discovered (current location: {self.location['name']})"
+            )
 
         return accepts
 
@@ -824,14 +822,8 @@ class SyncAction(AdvancedBaseAction):
         )
         self.logger.debug("[_register] Subscribed to: topic=ftrack.action.discover")
 
-        # launch action
-        launch_topic = (
-            'topic=ftrack.action.launch and data.actionIdentifier={0}'
-            ' and data.location="{1}"'.format(
-                self.identifier,
-                self.location['name']
-            )
-        )
+        # launch action - remove location filter so any Connect can handle any launch
+        launch_topic = f'topic=ftrack.action.launch and data.actionIdentifier={self.identifier}'
         self.session.event_hub.subscribe(launch_topic, self._launch)
         self.logger.debug(f"[_register] Subscribed to: {launch_topic}")
 
