@@ -106,11 +106,21 @@ class SyncAction(AdvancedBaseAction):
 
         locations = sorted(locations, key=lambda x: x['name'], reverse=True)
 
-
         for location in locations:
+            # Show online status indicator
+            # ✅ = accessible (has accessor on this machine or ftrack.server)
+            # 💤 = offline (no accessor, likely remote machine not running)
+            if location.accessor:
+                status = '✅'
+            else:
+                status = '💤'
+
+            # ftrack.server is always considered "online" for display purposes
+            if location['name'] == 'ftrack.server':
+                status = '✅'
 
             item = {
-                'label': location['name'],
+                'label': '{} {}'.format(status, location['name']),
                 'value': location['name']
             }
 
@@ -135,6 +145,13 @@ class SyncAction(AdvancedBaseAction):
         if not self.location_exists(dest_location):
             raise ValueError(
                 'Destination location {} does not exist'.format(dest_location)
+            )
+
+        # Prevent syncing to same location
+        if source_location == dest_location:
+            raise ValueError(
+                'Source and destination cannot be the same location. '
+                'Please select different locations to sync.'
             )
 
         event['data']['actionIdentifier'] = 'syncto-{}'.format(dest_location)

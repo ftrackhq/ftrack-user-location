@@ -11,6 +11,18 @@ from .sync_report import create_and_attach_sync_report
 logger = logging.getLogger(__name__)
 
 
+def _format_size(bytes_size):
+    """Format file size in bytes to human-readable string."""
+    if bytes_size is None:
+        return "unknown"
+
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if bytes_size < 1024.0:
+            return "{:.2f} {}".format(bytes_size, unit)
+        bytes_size /= 1024.0
+    return "{:.2f} PB".format(bytes_size)
+
+
 def _log_sync_context(logger_func, msg, **context):
     """Log message with structured context.
 
@@ -567,6 +579,19 @@ def on_sync_to_remote(session, source, destination, requesting_user_id, selectio
                 # ✅ FIX: Count as synced (already exists)
                 components_synced.append(component_name)
                 continue
+
+            # Check component size and warn on very large files
+            component_size = component.get('size', 0)
+            if component_size > 10 * 1024**3:  # 10GB threshold
+                size_str = _format_size(component_size)
+                _log_sync_context(
+                    logger.warning,
+                    "⚠️ Large component detected - sync may take a while",
+                    job_id=job_id,
+                    component=component_name,
+                    size=size_str,
+                    threshold="10GB"
+                )
 
             _log_sync_context(
                 logger.debug,
