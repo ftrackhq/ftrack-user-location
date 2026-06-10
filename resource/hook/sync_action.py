@@ -125,11 +125,12 @@ class SyncAction(AdvancedBaseAction):
             locations = [x for x in locations if x.accessor]
 
         # Filter by component availability (for source location dropdown)
+        # Don't filter out remote locations - show them with availability indicator
         if filter_by_availability is not None:
+            # Only include locations we know about
             locations = [
                 x for x in locations
                 if x['name'] in filter_by_availability
-                and filter_by_availability[x['name']][0] > 0  # available_count > 0
             ]
 
         locations = sorted(locations, key=lambda x: x['name'], reverse=True)
@@ -150,9 +151,15 @@ class SyncAction(AdvancedBaseAction):
             # Add availability info if filtering by components
             availability_info = ''
             if filter_by_availability and location['name'] in filter_by_availability:
-                available, total = filter_by_availability[location['name']]
-                percentage = (available / total * 100) if total > 0 else 0
-                availability_info = ' ({}/{} - {:.0f}%)'.format(available, total, percentage)
+                available, total, can_check = filter_by_availability[location['name']]
+
+                if can_check:
+                    # We verified availability on this machine
+                    percentage = (available / total * 100) if total > 0 else 0
+                    availability_info = ' ({}/{} - {:.0f}%)'.format(available, total, percentage)
+                else:
+                    # Remote location - can't verify from here
+                    availability_info = ' ({} components - availability unknown)'.format(total)
 
             item = {
                 'label': '{} {}{}'.format(status, location['name'], availability_info),
@@ -202,7 +209,8 @@ class SyncAction(AdvancedBaseAction):
             components: List of component entities or IDs
 
         Returns:
-            dict: {location_name: (available_count, total_count)}
+            dict: {location_name: (available_count, total_count, can_check)}
+            where can_check indicates if we could actually verify availability
         """
         location_availability = {}
 
@@ -211,35 +219,47 @@ class SyncAction(AdvancedBaseAction):
             if location_name in self._ignored_locations:
                 continue
 
+            # Check if we can verify availability on this machine
+            can_check = location.accessor is not None
+
             available = 0
-            total = 0
+            total = len(components)
 
-            for component in components:
-                # Handle both component entities and component IDs
-                if isinstance(component, dict):
-                    comp_id = component.get('id')
-                    component_entity = component
-                else:
-                    comp_id = component
-                    component_entity = self.session.get('FileComponent', comp_id)
+            if can_check:
+                # We can check availability (local location or ftrack.server)
+                for component in components:
+                    # Handle both component entities and component IDs
+                    if isinstance(component, dict):
+                        comp_id = component.get('id')
+                        component_entity = component
+                    else:
+                        comp_id = component
+                        component_entity = self.session.get('FileComponent', comp_id)
 
-                if not component_entity:
-                    continue
+                    if not component_entity:
+                        continue
 
-                total += 1
+                    try:
+                        availability = location.get_component_availability(component_entity)
+                        if availability == 100.0:
+                            available += 1
+                    except Exception as e:
+                        self.logger.debug(
+                            f"[get_component_locations] Error checking {location_name} "
+                            f"for component {comp_id}: {e}"
+                        )
+            else:
+                # Remote location - can't check from this machine
+                # Assume components might be there (will be verified by remote machine)
+                self.logger.debug(
+                    f"[get_component_locations] {location_name} is remote - "
+                    f"cannot verify availability from this machine"
+                )
 
-                try:
-                    availability = location.get_component_availability(component_entity)
-                    if availability == 100.0:
-                        available += 1
-                except Exception as e:
-                    self.logger.debug(
-                        f"[get_component_locations] Error checking {location_name} "
-                        f"for component {comp_id}: {e}"
-                    )
-
-            if total > 0:
-                location_availability[location_name] = (available, total)
+            # Include all locations:
+            # - Locations we can check: show actual availability
+            # - Remote locations: show as unknown but available for selection
+            location_availability[location_name] = (available, total, can_check)
 
         return location_availability
 
