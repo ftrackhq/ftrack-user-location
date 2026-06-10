@@ -1,4 +1,4 @@
 # :coding: utf-8
 # :copyright: Copyright (c) 2018 ftrack
 
-__version__ = '0.3.3'
+__version__ = '0.3.4'
