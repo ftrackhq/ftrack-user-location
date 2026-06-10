@@ -449,21 +449,26 @@ def on_sync_to_remote(session, source, destination, requesting_user_id, selectio
     sync_name = sync_location['name']
 
     # CRITICAL: Validate that source location has an accessor on this machine
+    # This should only fail if the event was routed incorrectly
     if not source_location.accessor:
         error_msg = (
-            f'Source location "{source_name}" is not accessible on this machine. '
-            f'Remote-to-remote transfers are not supported. '
-            f'To transfer from a remote user location, that user must initiate the sync to ftrack.server first, '
-            f'then you can sync from ftrack.server to your local location.'
+            f'ERROR: Source location "{source_name}" is not accessible on this machine ({session_user["username"]}). '
+            f'This sync event was delivered to the wrong machine! '
+            f'The event should have been picked up by the machine running Connect for location "{source_name}". '
+            f'Please ensure ftrack Connect is running on the machine that owns this location.'
         )
         _log_sync_context(
             logger.error,
-            "Source location has no accessor",
+            "Event routing error: source location has no accessor on this machine",
             source=source_name,
             destination=sync_name,
-            executor=session_user['username']
+            executor=session_user['username'],
+            machine=session.api_user
         )
-        logger.info(f"Sync architecture: Remote locations must sync TO ftrack.server, not FROM")
+        logger.error(
+            f"Event actionIdentifier should be '{source_name}-to-ftrack' "
+            f"and should be picked up by the machine with {source_name} location registered"
+        )
 
         # Create failed Job
         job = session.create('Job', {

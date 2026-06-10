@@ -249,12 +249,19 @@ class SyncAction(BaseAction):
                     'message': str(e)
                 }
 
-            event['data']['actionIdentifier'] = '{}-to-ftrack'.format(self.location['name'])
+            # CRITICAL FIX: Use SOURCE location in actionIdentifier, not self.location
+            # This ensures the event is picked up by the machine that HAS the source location
+            source_location = event['data']['values']['source_location']
+            event['data']['actionIdentifier'] = '{}-to-ftrack'.format(source_location)
+            self.logger.info(
+                f"Publishing sync event: {source_location} → ftrack.server "
+                f"(triggered by {self.location['name']})"
+            )
             self.session.event_hub.publish(event)
 
             return {
                 'success': True,
-                'message': 'Sync launched'
+                'message': f'Sync request published: {source_location} → ftrack.server (will be executed by remote machine)'
             }
 
     def register(self):
