@@ -360,6 +360,11 @@ class SyncAction(AdvancedBaseAction):
             components = event['data']['components']
             user_id = event['source']['user']['id']
 
+            # Debug: Log location IDs to diagnose report issue
+            self.logger.info(
+                f"[sync_here] Location IDs: source_id={source_id}, dest_id={dest_id}"
+            )
+
             self.logger.info(
                 f"[sync_here] Starting sync: ftrack.server → {self.location['name']} "
                 f"[components={len(components)}, user={user_id}]"
