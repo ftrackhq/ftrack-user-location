@@ -5,6 +5,7 @@ import ftrack_api
 import logging
 import json
 import time
+from .sync_report import create_and_attach_sync_report
 
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,22 @@ def on_sync_to_destination(session, source_id, destination_id, components, reque
         # ✅ FIX: Re-query Job before updating
         job = session.get('Job', job_id)
 
-        message = 'Locations are not accessible'
+        # Provide clear error message based on which accessor is missing
+        if not source_accessor and not destination_accessor:
+            message = f'Both locations are not accessible: {source_name} and {destination_name}'
+            hint = 'Ensure both locations are registered on this machine'
+        elif not source_accessor:
+            message = f'Source location is not accessible: {source_name}'
+            hint = (
+                f'The source location "{source_name}" is not available on this machine. '
+                f'For remote-to-local transfers, use a two-step process: '
+                f'1) Remote machine syncs to ftrack.server, then '
+                f'2) Local machine syncs from ftrack.server to local'
+            )
+        else:
+            message = f'Destination location is not accessible: {destination_name}'
+            hint = f'The destination location "{destination_name}" is not available on this machine'
+
         _log_sync_context(
             logger.error,
             message,
@@ -111,23 +127,37 @@ def on_sync_to_destination(session, source_id, destination_id, components, reque
             source_accessible=bool(source_accessor),
             destination_accessible=bool(destination_accessor)
         )
+        logger.info(f"Sync hint: {hint}")
 
         job['data'] = json.dumps({
-            'description': message + f': {destination_name}, {source_name}',
+            'description': f'{message}. {hint}',
             'requested_by': requesting_user_id
         })
         job['status'] = 'failed'
         session.commit()
         return
 
-    # ✅ FIX: Track sync results for final Job update
+    # ✅ FIX: Track sync results for final Job update and reporting
     components_synced = []
     components_failed = []
+    components_skipped = []
 
     # now try to do the sync for each component
     for component in components:
         component_id = component['id']
         component_name = component['name']
+
+        # Get asset version info for reporting
+        version_info = 'N/A'
+        try:
+            if component.get('version'):
+                version = component['version']
+                version_info = f"{version['asset']['name']} v{version['version']}"
+        except Exception:
+            pass
+
+        # Get component size for reporting
+        component_size = component.get('size')
 
         # exclude ftrack-review component names ?
         if 'ftrackreview' in component_name:
@@ -161,7 +191,11 @@ def on_sync_to_destination(session, source_id, destination_id, components, reque
             # ✅ FIX: Track failure instead of updating Job immediately
             components_failed.append({
                 'name': component_name,
-                'error': 'Not available in source location'
+                'id': component_id,
+                'error': 'Not available in source location',
+                'error_type': 'ComponentUnavailable',
+                'version': version_info,
+                'size': component_size
             })
             continue
 
@@ -172,8 +206,14 @@ def on_sync_to_destination(session, source_id, destination_id, components, reque
                 job_id=job_id,
                 component=component_name
             )
-            # ✅ FIX: Count as synced (already exists)
-            components_synced.append(component_name)
+            # Track as skipped (already exists)
+            components_skipped.append({
+                'name': component_name,
+                'id': component_id,
+                'reason': 'Already exists at destination',
+                'version': version_info,
+                'size': component_size
+            })
             continue
 
         _log_sync_context(
@@ -190,8 +230,13 @@ def on_sync_to_destination(session, source_id, destination_id, components, reque
                 component,
                 source_location
             )
-            # ✅ FIX: Track success
-            components_synced.append(component_name)
+            # ✅ FIX: Track success with details for reporting
+            components_synced.append({
+                'name': component_name,
+                'id': component_id,
+                'version': version_info,
+                'size': component_size
+            })
             _log_sync_context(
                 logger.info,
                 "Component synced successfully",
@@ -208,26 +253,37 @@ def on_sync_to_destination(session, source_id, destination_id, components, reque
                 component=component_name,
                 error=str(error)
             )
-            # ✅ FIX: Count as synced (already exists)
-            components_synced.append(component_name)
+            # Track as skipped (already exists, caught by exception)
+            components_skipped.append({
+                'name': component_name,
+                'id': component_id,
+                'reason': 'Already exists at destination (caught during transfer)',
+                'version': version_info,
+                'size': component_size
+            })
             continue
 
         except Exception as error:
             import traceback
+            error_type = type(error).__name__
             _log_sync_context(
                 logger.error,
                 "Component sync failed",
                 job_id=job_id,
                 component=component_name,
                 component_id=component_id,
-                error_type=type(error).__name__,
+                error_type=error_type,
                 error=str(error)
             )
             logger.error(traceback.format_exc())
             # ✅ FIX: Track failure instead of immediate Job update
             components_failed.append({
                 'name': component_name,
-                'error': str(error)
+                'id': component_id,
+                'error': str(error),
+                'error_type': error_type,
+                'version': version_info,
+                'size': component_size
             })
 
     # ✅ FIX: Batch commit all component operations (performance fix)
@@ -236,32 +292,76 @@ def on_sync_to_destination(session, source_id, destination_id, components, reque
     # ✅ FIX: Re-query Job before final update
     job = session.get('Job', job_id)
 
+    # Calculate duration before attaching report
+    duration = time.time() - start_time
+
+    # Generate and attach sync report as Job Component
+    _log_sync_context(
+        logger.info,
+        "Generating sync report",
+        job_id=job_id,
+        synced=len(components_synced),
+        skipped=len(components_skipped),
+        failed=len(components_failed)
+    )
+
+    report_component_id = create_and_attach_sync_report(
+        session=session,
+        job_id=job_id,
+        source_name=source_name,
+        destination_name=destination_name,
+        executor_username=session_user['username'],
+        requesting_user_id=requesting_user_id,
+        components_synced=components_synced,
+        components_failed=components_failed,
+        components_skipped=components_skipped,
+        duration=duration
+    )
+
     # ✅ FIX: Set final status based on results
+    # Extract component names for backward compatibility
+    synced_names = [c['name'] if isinstance(c, dict) else c for c in components_synced]
+    failed_details = [{'name': c['name'], 'error': c['error']} for c in components_failed]
+
     if components_failed:
         job['status'] = 'failed'
+        description = '{} components failed, {} succeeded, {} skipped'.format(
+            len(components_failed),
+            len(components_synced),
+            len(components_skipped)
+        )
+        if report_component_id:
+            description += ' - See attached report for details'
+
         job['data'] = json.dumps({
-            'description': '{} components failed, {} succeeded'.format(
-                len(components_failed),
-                len(components_synced)
-            ),
+            'description': description,
             'requested_by': requesting_user_id,
-            'components_synced': components_synced,
-            'components_failed': components_failed
+            'components_synced': synced_names,
+            'components_failed': failed_details,
+            'components_skipped': len(components_skipped),
+            'report_component_id': report_component_id
         })
     else:
         job['status'] = 'done'
+        description = 'Sync from {} to {} completed successfully - {} synced, {} skipped'.format(
+            source_name,
+            destination_name,
+            len(components_synced),
+            len(components_skipped)
+        )
+        if report_component_id:
+            description += ' - See attached report for details'
+
         job['data'] = json.dumps({
-            'description': 'Sync from {} to {} completed successfully'.format(
-                source_name,
-                destination_name
-            ),
+            'description': description,
             'requested_by': requesting_user_id,
-            'components_synced': components_synced
+            'components_synced': synced_names,
+            'components_skipped': len(components_skipped),
+            'report_component_id': report_component_id
         })
 
     session.commit()
 
-    duration = time.time() - start_time
     _log_sync_context(
         logger.info,
         "Sync operation completed",
@@ -269,9 +369,11 @@ def on_sync_to_destination(session, source_id, destination_id, components, reque
         status=job['status'],
         total_components=len(components),
         succeeded=len(components_synced),
+        skipped=len(components_skipped),
         failed=len(components_failed),
         duration_seconds=f"{duration:.2f}",
-        components_per_second=f"{len(components)/duration:.2f}" if duration > 0 else "N/A"
+        components_per_second=f"{len(components)/duration:.2f}" if duration > 0 else "N/A",
+        report_attached=bool(report_component_id)
     )
 
 
@@ -325,10 +427,58 @@ def on_sync_to_remote(session, source, destination, requesting_user_id, selectio
                     )
                 results[store_type] = location
 
-    source_name = results['input']['name']
-    sync_name = results['sync']['name']
+    # Validate required locations were found
+    if 'input' not in results or 'sync' not in results:
+        error_msg = f"Required locations not found - input: {source}, sync: ftrack.server"
+        logger.error(error_msg)
+        # Create failed Job without storing job_id since we're returning early
+        job = session.create('Job', {
+            'data': json.dumps({
+                'description': error_msg,
+                'requested_by': requesting_user_id
+            }),
+            'user': session_user,
+            'status': 'failed'
+        })
+        session.commit()
+        return
+
+    source_location = results['input']
+    sync_location = results['sync']
+    source_name = source_location['name']
+    sync_name = sync_location['name']
+
+    # CRITICAL: Validate that source location has an accessor on this machine
+    if not source_location.accessor:
+        error_msg = (
+            f'Source location "{source_name}" is not accessible on this machine. '
+            f'Remote-to-remote transfers are not supported. '
+            f'To transfer from a remote user location, that user must initiate the sync to ftrack.server first, '
+            f'then you can sync from ftrack.server to your local location.'
+        )
+        _log_sync_context(
+            logger.error,
+            "Source location has no accessor",
+            source=source_name,
+            destination=sync_name,
+            executor=session_user['username']
+        )
+        logger.info(f"Sync architecture: Remote locations must sync TO ftrack.server, not FROM")
+
+        # Create failed Job
+        job = session.create('Job', {
+            'data': json.dumps({
+                'description': error_msg,
+                'requested_by': requesting_user_id
+            }),
+            'user': session_user,
+            'status': 'failed'
+        })
+        session.commit()
+        return
 
     # ✅ FIX: Create Job owned by executor, track requester in metadata
+    # Only create Job after validation passes
     job = session.create('Job', {
         'data': json.dumps({
             'description': f"Sync from {source_name} to {sync_name}",
