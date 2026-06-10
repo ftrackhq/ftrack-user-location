@@ -168,21 +168,41 @@ class SyncAction(BaseAction):
         return event
 
     def sync_here(self, event=None):
+        """Handle ftrack.sync event - downloads FROM ftrack.server TO local."""
+        self.logger.info(
+            f"[sync_here] Received ftrack.sync event "
+            f"[actionIdentifier={event['data'].get('actionIdentifier')}, "
+            f"location={self.location['name']}]"
+        )
+        self.logger.debug(f"[sync_here] Event data: {event['data']}")
 
         try:
+            source_id = event['data']['locations']['sync']
+            dest_id = event['data']['locations']['destination']
+            components = event['data']['components']
+            user_id = event['source']['user']['id']
+
+            self.logger.info(
+                f"[sync_here] Starting sync: ftrack.server → {self.location['name']} "
+                f"[components={len(components)}, user={user_id}]"
+            )
+
             sync.on_sync_to_destination(
                 self.session,
-                event['data']['locations']['sync'],
-                event['data']['locations']['destination'],
-                event['data']['components'],
-                event['source']['user']['id']
+                source_id,
+                dest_id,
+                components,
+                user_id
             )
+
+            self.logger.info(f"[sync_here] Sync completed successfully")
             return {
                 'success': True,
                 'message': 'Sync completed'
             }
-        except Exception:
+        except Exception as error:
             import traceback
+            self.logger.error(f"[sync_here] Sync failed: {error}")
             self.logger.error(traceback.format_exc())
             return {
                 'success': False,
@@ -193,27 +213,52 @@ class SyncAction(BaseAction):
             }
 
     def sync_there(self, event):
+        """Handle {location}-to-ftrack event - uploads FROM local TO ftrack.server."""
+        action_id = event['data'].get('actionIdentifier', 'unknown')
+        self.logger.info(
+            f"[sync_there] Received sync event "
+            f"[actionIdentifier={action_id}, location={self.location['name']}]"
+        )
+        self.logger.debug(f"[sync_there] Event data: {event['data']}")
+
         try:
             _id = event['source']['id']
             source_location = event['data']['values']['source_location']
             dest_location = event['data']['values']['dest_location']
+            selection = event['data'].get('selection', [])
+            user_id = event['source']['user']['id']
+
+            self.logger.info(
+                f"[sync_there] Starting sync: {source_location} → {dest_location} "
+                f"[asset_versions={len(selection)}, user={user_id}]"
+            )
+
+            # Verify this is the right machine to handle this event
+            if source_location != self.location['name']:
+                self.logger.warning(
+                    f"[sync_there] Event routing mismatch! "
+                    f"This machine has location '{self.location['name']}' "
+                    f"but event is for '{source_location}'. This should not happen!"
+                )
 
             sync.on_sync_to_remote(
                 self.session,
                 source_location,
                 dest_location,
-                event['source']['user']['id'],
-                event['data'].get('selection', [])
+                user_id,
+                selection
             )
             self._location_data.pop(_id) if _id in self._location_data else None
 
+            self.logger.info(f"[sync_there] Sync completed successfully")
             return {
                 'success': True,
                 'message': 'Sync completed'
             }
 
-        except Exception:
+        except Exception as error:
             import traceback
+            self.logger.error(f"[sync_there] Sync failed: {error}")
             self.logger.error(traceback.format_exc())
             return {
                 'success': False,
@@ -281,35 +326,51 @@ class SyncAction(BaseAction):
         )
 
     def _register(self, event):
+        self.logger.info(
+            f"[_register] Registering sync action for location: {self.location['name']}"
+        )
+
         # discover action
         self.session.event_hub.subscribe(
             'topic=ftrack.action.discover',
             self._discover
         )
+        self.logger.debug("[_register] Subscribed to: topic=ftrack.action.discover")
 
         # launch action
-        self.session.event_hub.subscribe(
+        launch_topic = (
             'topic=ftrack.action.launch and data.actionIdentifier={0}'
             ' and data.location="{1}"'.format(
                 self.identifier,
                 self.location['name']
-            ),
-            self._launch
+            )
         )
+        self.session.event_hub.subscribe(launch_topic, self._launch)
+        self.logger.debug(f"[_register] Subscribed to: {launch_topic}")
 
         # register event for every accessible location
-        for location in self.get_locations():
-            if location.accessor:
-                # listen to transfer events.
-                self.session.event_hub.subscribe(
-                    'data.actionIdentifier={0}-to-ftrack'.format(location['name']),
-                    self.sync_there
-                )
+        accessible_locations = [loc for loc in self.get_locations() if loc.accessor]
+        self.logger.info(
+            f"[_register] Found {len(accessible_locations)} accessible locations "
+            f"on this machine: {[loc['name'] for loc in accessible_locations]}"
+        )
 
-                self.session.event_hub.subscribe(
-                    'topic=ftrack.sync and data.actionIdentifier=ftrack-to-{0}'.format(location['name']),
-                    self.sync_here
-                )
+        for location in accessible_locations:
+            # listen to transfer events: uploads FROM this location TO ftrack.server
+            upload_topic = 'data.actionIdentifier={0}-to-ftrack'.format(location['name'])
+            self.session.event_hub.subscribe(upload_topic, self.sync_there)
+            self.logger.info(
+                f"[_register] Subscribed to UPLOAD events: {upload_topic} "
+                f"(will handle uploads from {location['name']})"
+            )
+
+            # listen to download events: downloads FROM ftrack.server TO this location
+            download_topic = 'topic=ftrack.sync and data.actionIdentifier=ftrack-to-{0}'.format(location['name'])
+            self.session.event_hub.subscribe(download_topic, self.sync_here)
+            self.logger.info(
+                f"[_register] Subscribed to DOWNLOAD events: {download_topic} "
+                f"(will handle downloads to {location['name']})"
+            )
 
 
 def register(api_object, **kwargs):
