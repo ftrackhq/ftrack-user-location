@@ -312,19 +312,22 @@ class SyncAction(BaseAction):
         total = 0
 
         for item in components:
-            # Use entity_type (underscore, PascalCase) not entityType (camelCase)
-            entity_type = item.get('entity_type') or item.get('entityType', '').title()
-            entity_id = item.get('entity_id') or item.get('entityId')
-
-            if not entity_type or not entity_id:
+            # Use BaseAction's _get_entity_type() to translate entity type properly
+            # This handles 'assetversion' → 'AssetVersion' and other schema lookups
+            try:
+                entity_type = self._get_entity_type(item)
+            except (ValueError, KeyError) as e:
                 self.logger.warning(
-                    f"[check_availability] Invalid item in selection: {item}"
+                    f"[check_availability] Could not determine entity type for item: {item}, error: {e}"
                 )
                 continue
 
-            # Ensure entity_type is PascalCase (AssetVersion not assetversion)
-            if entity_type.lower() == 'assetversion':
-                entity_type = 'AssetVersion'
+            entity_id = item.get('entity_id') or item.get('entityId')
+            if not entity_id:
+                self.logger.warning(
+                    f"[check_availability] No entity ID in selection: {item}"
+                )
+                continue
 
             entity = self.session.get(entity_type, entity_id)
             if entity and entity['entity_type'] == 'AssetVersion':
