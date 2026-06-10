@@ -69,31 +69,22 @@ def configure_logging(logger_name, level=None, format=None, extra_modules=None):
         'version': 1,
         'disable_existing_loggers': False,
         'handlers': {
-            'console': {
+            'plugin_console': {
                 'class': 'logging.StreamHandler',
                 'level': logging.getLevelName(level),
                 'formatter': 'file',
                 'stream': 'ext://sys.stdout',
-                'filters': ['filtered'],
             },
-            'file': {
+            'plugin_file': {
                 'class': 'logging.handlers.RotatingFileHandler',
                 'level': 'DEBUG',
                 'formatter': 'file',
                 'filename': logfile,
-                'filters': ['filtered'],
                 'mode': 'a',
                 'maxBytes': 10485760,
                 'backupCount': 5,
             },
 
-        },
-        'filters': {
-            'filtered': {
-                '()': lambda: type('LoggerNameFilter', (logging.Filter,), {
-                    'filter': lambda self, record: record.name.startswith(logger_name)
-                })()
-            }
         },
         'formatters': {
             'file': {
@@ -101,13 +92,17 @@ def configure_logging(logger_name, level=None, format=None, extra_modules=None):
             }
         },
         'loggers': {
-            '': {
+            # Configure logger for this plugin specifically
+            logger_name: {
                 'level': 'DEBUG',
-                'handlers': ['console', 'file']
+                'handlers': ['plugin_console', 'plugin_file'],
+                'propagate': False,  # Don't propagate to root logger
             }
         }
     }
 
+    # Configure log levels for additional modules
+    # These use their own handlers (from ftrack Connect or other sources)
     for module in modules:
         current_level = logging.getLevelName(level)
         logging_settings['loggers'].setdefault(
